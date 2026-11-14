@@ -120,9 +120,9 @@ async function analyzeWithModel(
     config: {
       responseMimeType: "application/json",
       responseSchema: SHOWCARD_RESPONSE_SCHEMA,
-      ...(useLowThinking
-        ? { thinkingConfig: { thinkingLevel: ThinkingLevel.LOW } }
-        : {}),
+      thinkingConfig: useLowThinking
+        ? { thinkingLevel: ThinkingLevel.LOW }
+        : { thinkingBudget: 0 },
     },
   });
 }

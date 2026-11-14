@@ -127,6 +127,11 @@ export default function App() {
             "사진 파일 용량이 너무 커서 서버에 전달하지 못했습니다. 다른 사진으로 다시 시도해 주세요."
           );
         }
+        if (response.status === 504) {
+          throw new Error(
+            "이미지 분석 서버 응답 시간이 초과되었습니다. 잠시 후 다시 시도해 주세요."
+          );
+        }
         if (payload?.error && /[가-힣]/.test(payload.error)) {
           throw new Error(payload.error);
         }
