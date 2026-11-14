@@ -15,10 +15,12 @@ interface ThemeVisualStyle {
   storeBadge: string;
   kickerText: string;
   eventBadge: string;
+  productFrame: string;
   productTitle: string;
   subInfoText: string;
   priceLabel: string;
   priceValue: string;
+  priceNoteBadge: string;
   priceDivider: string;
   footerCard: string;
   footerCardIconWrap: string;
@@ -38,10 +40,12 @@ const THEME_STYLES: Record<PosterThemeId, ThemeVisualStyle> = {
     kickerText: "text-emerald-300",
     eventBadge:
       "bg-emerald-400 text-purple-950 shadow-[0_8px_24px_rgba(16,185,129,0.35)]",
+    productFrame: "bg-white/95 border border-emerald-200/70 shadow-md",
     productTitle: "text-white",
     subInfoText: "text-purple-100/90",
     priceLabel: "text-emerald-300",
     priceValue: "text-white",
+    priceNoteBadge: "bg-emerald-400/20 border border-emerald-300/35 text-emerald-200",
     priceDivider: "bg-emerald-300/40",
     footerCard: "bg-white text-slate-900 shadow-lg",
     footerCardIconWrap: "bg-purple-100 text-purple-800",
@@ -59,10 +63,12 @@ const THEME_STYLES: Record<PosterThemeId, ThemeVisualStyle> = {
     kickerText: "text-amber-300",
     eventBadge:
       "bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-zinc-950 shadow-[0_8px_24px_rgba(245,158,11,0.3)]",
+    productFrame: "bg-white/95 border border-amber-300/50 shadow-md",
     productTitle: "text-amber-50",
     subInfoText: "text-zinc-300",
     priceLabel: "text-amber-400",
     priceValue: "text-amber-300",
+    priceNoteBadge: "bg-amber-400/15 border border-amber-400/35 text-amber-200",
     priceDivider: "bg-amber-400/45",
     footerCard: "bg-zinc-950/85 border border-amber-400/45 text-amber-50 shadow-lg",
     footerCardIconWrap: "bg-amber-400/20 text-amber-300",
@@ -80,10 +86,12 @@ const THEME_STYLES: Record<PosterThemeId, ThemeVisualStyle> = {
     kickerText: "text-yellow-300",
     eventBadge:
       "bg-yellow-300 text-red-950 shadow-[0_8px_24px_rgba(253,224,71,0.35)]",
+    productFrame: "bg-white/95 border border-yellow-300/60 shadow-md",
     productTitle: "text-white",
     subInfoText: "text-rose-100",
     priceLabel: "text-yellow-300",
     priceValue: "text-yellow-300",
+    priceNoteBadge: "bg-red-950/45 border border-yellow-300/35 text-yellow-200",
     priceDivider: "bg-yellow-300/50",
     footerCard: "bg-yellow-300 text-red-950 shadow-lg",
     footerCardIconWrap: "bg-red-700 text-yellow-300",
@@ -104,8 +112,10 @@ export function PromoPosterPreview({
   const hasProductName = config.productName.trim().length > 0;
   const hasSubInfo = config.subInfo.trim().length > 0;
   const hasPrice = config.price.trim().length > 0;
+  const hasPriceNote = config.priceNote.trim().length > 0;
   const hasCardDiscount = config.cardDiscount.trim().length > 0;
   const hasPeriod = config.period.trim().length > 0;
+  const showImage = Boolean(config.productImageUrl && config.showProductImage);
 
   return (
     <div className="relative w-full max-w-[440px] mx-auto">
@@ -158,46 +168,65 @@ export function PromoPosterPreview({
           )}
         </div>
 
-        {/* 중앙 메인: 상품명, 서브 정보, 행사가 */}
-        <div className="relative z-10 my-auto py-4 text-center flex flex-col items-center">
-          <div
-            className={`text-[11px] font-extrabold tracking-[0.18em] uppercase mb-2.5 ${style.kickerText}`}
-          >
-            {config.theme === "liquor"
-              ? "NIGHT SPECIAL SELECTION"
-              : config.theme === "hotdeal"
-                ? "LIMITED HOT DEAL"
-                : "SPECIAL PROMOTION"}
-          </div>
+        {/* 중앙 메인: (선택) 상품 이미지, 상품명, 서브 정보, 행사가 */}
+        <div className="relative z-10 my-auto py-3 text-center flex flex-col items-center">
+          {showImage ? (
+            <div
+              className={`w-24 h-24 sm:w-28 sm:h-28 rounded-2xl p-2 mb-3.5 flex items-center justify-center overflow-hidden ${style.productFrame}`}
+            >
+              <img
+                src={config.productImageUrl ?? ""}
+                alt={config.productName || "행사 상품"}
+                className="w-full h-full object-contain rounded-lg"
+              />
+            </div>
+          ) : (
+            <div
+              className={`text-[11px] font-extrabold tracking-[0.18em] uppercase mb-2.5 ${style.kickerText}`}
+            >
+              {config.theme === "liquor"
+                ? "NIGHT SPECIAL SELECTION"
+                : config.theme === "hotdeal"
+                  ? "LIMITED HOT DEAL"
+                  : "SPECIAL PROMOTION"}
+            </div>
+          )}
 
           <h3
             style={{ fontSize: `${config.productFontSize}px` }}
-            className={`font-black leading-[1.18] tracking-tight break-keep text-balance ${style.productTitle}`}
+            className={`font-black leading-[1.16] tracking-tight break-keep text-balance ${style.productTitle}`}
           >
             {hasProductName ? config.productName : "상품명을 입력해 주세요"}
           </h3>
 
           {hasSubInfo && (
             <p
-              className={`mt-3 text-sm sm:text-[15px] font-medium leading-snug break-keep max-w-[90%] ${style.subInfoText}`}
+              className={`mt-2.5 text-sm sm:text-[15px] font-medium leading-snug break-keep max-w-[92%] ${style.subInfoText}`}
             >
               {config.subInfo}
             </p>
           )}
 
           {/* 가격 영역 */}
-          <div className="mt-5 flex flex-col items-center">
-            <div className={`w-10 h-0.5 rounded-full mb-3 ${style.priceDivider}`} />
+          <div className="mt-4 flex flex-col items-center">
+            <div className={`w-10 h-0.5 rounded-full mb-2.5 ${style.priceDivider}`} />
             <span
               className={`text-[11px] font-bold tracking-wider uppercase mb-1 ${style.priceLabel}`}
             >
               행사 판매가
             </span>
             <div
-              className={`text-4xl sm:text-[44px] font-black tracking-tight leading-none font-mono-num ${style.priceValue}`}
+              className={`text-4xl sm:text-[42px] font-black tracking-tight leading-none font-mono-num ${style.priceValue}`}
             >
               {hasPrice ? config.price : "0원"}
             </div>
+            {hasPriceNote && (
+              <div
+                className={`mt-2 px-3 py-1 rounded-lg text-xs font-bold tracking-tight ${style.priceNoteBadge}`}
+              >
+                {config.priceNote}
+              </div>
+            )}
           </div>
         </div>
 
@@ -245,7 +274,7 @@ export function PromoPosterPreview({
           )}
         </div>
 
-        {/* AI 분석 중 오버레이 (PNG 저장 요소 내부지만 분석 중일 때만 표시) */}
+        {/* AI 분석 중 오버레이 */}
         {isAnalyzing && (
           <div className="absolute inset-0 z-20 bg-slate-950/75 backdrop-blur-xs flex flex-col items-center justify-center text-white p-6 text-center">
             <Loader2 className="w-9 h-9 animate-spin text-emerald-400 mb-3" />

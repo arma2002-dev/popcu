@@ -1,12 +1,16 @@
-import React from "react";
+import React, { useRef } from "react";
 import {
   Calendar,
   CreditCard,
+  Eye,
+  EyeOff,
   Flame,
+  ImagePlus,
   SlidersHorizontal,
   Sparkles,
   Store,
   Tag,
+  Trash2,
   Type as TypeIcon,
   Wine,
 } from "lucide-react";
@@ -53,6 +57,18 @@ export function PosterEditorPanel({
   isAnalyzing,
   onChange,
 }: PosterEditorPanelProps) {
+  const productImgInputRef = useRef<HTMLInputElement>(null);
+
+  const handleProductImageUpload = (file: File | undefined) => {
+    if (!file || !file.type.startsWith("image/")) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      onChange("productImageUrl", reader.result as string);
+      onChange("showProductImage", true);
+    };
+    reader.readAsDataURL(file);
+  };
+
   return (
     <div className="space-y-5">
       {/* 테마 선택 */}
@@ -158,6 +174,87 @@ export function PosterEditorPanel({
             </div>
           </div>
 
+          {/* 상품 이미지 (자동 추출 또는 직접 첨부) */}
+          <div className="p-3 bg-slate-50 border border-slate-200/80 rounded-xl">
+            <input
+              ref={productImgInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                handleProductImageUpload(e.target.files?.[0]);
+                e.target.value = "";
+              }}
+            />
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2.5 min-w-0">
+                {config.productImageUrl ? (
+                  <img
+                    src={config.productImageUrl}
+                    alt="포스터 상품 이미지"
+                    className="w-10 h-10 rounded-lg object-contain bg-white border border-slate-200 shrink-0 p-0.5"
+                  />
+                ) : (
+                  <div className="w-10 h-10 rounded-lg bg-white border border-slate-200 flex items-center justify-center text-slate-400 shrink-0">
+                    <ImagePlus className="w-4 h-4" />
+                  </div>
+                )}
+                <div className="min-w-0">
+                  <div className="text-xs font-semibold text-slate-800">
+                    상품 이미지 (선택)
+                  </div>
+                  <div className="text-[11px] text-slate-500 truncate">
+                    {config.productImageUrl
+                      ? "포스터 중앙에 상품 컷이 함께 표시됩니다"
+                      : "쇼카드 분석 시 자동 추출되거나 직접 올릴 수 있어요"}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 shrink-0">
+                {config.productImageUrl && (
+                  <>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onChange("showProductImage", !config.showProductImage)
+                      }
+                      title={config.showProductImage ? "포스터에서 숨기기" : "포스터에 표시"}
+                      className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                    >
+                      {config.showProductImage ? (
+                        <>
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>표시</span>
+                        </>
+                      ) : (
+                        <>
+                          <EyeOff className="w-3.5 h-3.5" />
+                          <span>숨김</span>
+                        </>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onChange("productImageUrl", null)}
+                      title="상품 이미지 삭제"
+                      className="p-1.5 text-slate-500 hover:text-red-600 bg-white border border-slate-200 hover:border-red-200 rounded-lg transition-colors cursor-pointer"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </>
+                )}
+                <button
+                  type="button"
+                  onClick={() => productImgInputRef.current?.click()}
+                  className="px-2.5 py-1.5 text-xs font-semibold text-slate-700 bg-white border border-slate-200 hover:bg-slate-100 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  {config.productImageUrl ? "변경" : "사진 추가"}
+                </button>
+              </div>
+            </div>
+          </div>
+
           {/* 상품명 + 글자 크기 슬라이더 */}
           <div>
             <label
@@ -172,7 +269,7 @@ export function PosterEditorPanel({
               type="text"
               value={config.productName}
               onChange={(e) => onChange("productName", e.target.value)}
-              placeholder="예: 연세우유 생크림빵 시리즈"
+              placeholder="예: 라엘 순면커버 중형 16P"
               className="w-full px-3.5 py-2.5 text-sm font-semibold bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
             />
 
@@ -223,27 +320,46 @@ export function PosterEditorPanel({
               type="text"
               value={config.subInfo}
               onChange={(e) => onChange("subInfo", e.target.value)}
-              placeholder="예: 500ml 캔 · 교차 구매 가능"
+              placeholder="예: 중형 16개입 · CU 키핑 가능"
               className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
             />
           </div>
 
-          {/* 최종 판매가 */}
-          <div>
-            <label
-              htmlFor="input-price"
-              className="block text-xs font-semibold text-slate-700 mb-1.5"
-            >
-              최종 판매가 / 행사가
-            </label>
-            <input
-              id="input-price"
-              type="text"
-              value={config.price}
-              onChange={(e) => onChange("price", e.target.value)}
-              placeholder="예: 2,900원"
-              className="w-full px-3.5 py-2.5 text-sm font-bold font-mono-num bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
-            />
+          {/* 최종 판매가 + 체감가 안내 */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            <div>
+              <label
+                htmlFor="input-price"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
+              >
+                최종 판매가 / 행사가
+              </label>
+              <input
+                id="input-price"
+                type="text"
+                value={config.price}
+                onChange={(e) => onChange("price", e.target.value)}
+                placeholder="예: 11,900원"
+                className="w-full px-3.5 py-2.5 text-sm font-bold font-mono-num bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label
+                htmlFor="input-price-note"
+                className="block text-xs font-semibold text-slate-700 mb-1.5"
+              >
+                개당가 / 보조 안내 (선택)
+              </label>
+              <input
+                id="input-price-note"
+                type="text"
+                value={config.priceNote}
+                onChange={(e) => onChange("priceNote", e.target.value)}
+                placeholder="예: 1+1 적용 시 개당 5,950원"
+                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
+              />
+            </div>
           </div>
 
           {/* 카드 즉시할인 조건 */}
@@ -253,14 +369,14 @@ export function PosterEditorPanel({
               className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5"
             >
               <CreditCard className="w-3.5 h-3.5 text-slate-400" />
-              <span>카드 즉시할인 조건</span>
+              <span>카드 · 간편결제 추가할인 조건</span>
             </label>
             <input
               id="input-card-discount"
               type="text"
               value={config.cardDiscount}
               onChange={(e) => onChange("cardDiscount", e.target.value)}
-              placeholder="예: 삼성카드 결제 시 20% 현장할인"
+              placeholder="예: CU Npay 추가할인 (포켓CU 확인)"
               className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
             />
           </div>
@@ -279,7 +395,7 @@ export function PosterEditorPanel({
               type="text"
               value={config.period}
               onChange={(e) => onChange("period", e.target.value)}
-              placeholder="예: 11월 1일 ~ 11월 30일"
+              placeholder="예: 11.1 ~ 11.30"
               className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
             />
           </div>

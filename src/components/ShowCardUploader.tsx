@@ -6,6 +6,7 @@ import {
   ImagePlus,
   Loader2,
   RefreshCw,
+  ScanLine,
   Upload,
 } from "lucide-react";
 
@@ -18,55 +19,73 @@ interface ShowCardUploaderProps {
   onError: (message: string) => void;
 }
 
-async function resizeImageToJpeg(
+const SAMPLE_SHOWCARD_PATH = "/assets/aistudio/IMG_4819_a761a157.jpeg";
+
+async function resizeDataUrlToJpeg(
+  dataUrl: string,
+  fallbackMime = "image/jpeg"
+): Promise<{ base64: string; mimeType: string; previewDataUrl: string }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onerror = () => reject(new Error("지원하지 않는 이미지 형식입니다."));
+    img.onload = () => {
+      const maxDim = 1600;
+      let { width, height } = img;
+
+      if (width > maxDim || height > maxDim) {
+        if (width >= height) {
+          height = Math.round((height * maxDim) / width);
+          width = maxDim;
+        } else {
+          width = Math.round((width * maxDim) / height);
+          height = maxDim;
+        }
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+
+      if (!ctx) {
+        const base64Only = dataUrl.split(",")[1] ?? "";
+        resolve({
+          base64: base64Only,
+          mimeType: fallbackMime,
+          previewDataUrl: dataUrl,
+        });
+        return;
+      }
+
+      ctx.drawImage(img, 0, 0, width, height);
+      const compressedUrl = canvas.toDataURL("image/jpeg", 0.9);
+      const base64Only = compressedUrl.split(",")[1] ?? "";
+      resolve({
+        base64: base64Only,
+        mimeType: "image/jpeg",
+        previewDataUrl: compressedUrl,
+      });
+    };
+    img.src = dataUrl;
+  });
+}
+
+async function resizeFileToJpeg(
   file: File
 ): Promise<{ base64: string; mimeType: string; previewDataUrl: string }> {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onerror = () => reject(new Error("이미지 파일을 읽지 못했습니다."));
-    reader.onload = () => {
-      const dataUrl = reader.result as string;
-      const img = new Image();
-      img.onerror = () => reject(new Error("지원하지 않는 이미지 형식입니다."));
-      img.onload = () => {
-        const maxDim = 1600;
-        let { width, height } = img;
-
-        if (width > maxDim || height > maxDim) {
-          if (width >= height) {
-            height = Math.round((height * maxDim) / width);
-            width = maxDim;
-          } else {
-            width = Math.round((width * maxDim) / height);
-            height = maxDim;
-          }
-        }
-
-        const canvas = document.createElement("canvas");
-        canvas.width = width;
-        canvas.height = height;
-        const ctx = canvas.getContext("2d");
-
-        if (!ctx) {
-          const base64Only = dataUrl.split(",")[1] ?? "";
-          resolve({
-            base64: base64Only,
-            mimeType: file.type || "image/jpeg",
-            previewDataUrl: dataUrl,
-          });
-          return;
-        }
-
-        ctx.drawImage(img, 0, 0, width, height);
-        const compressedUrl = canvas.toDataURL("image/jpeg", 0.88);
-        const base64Only = compressedUrl.split(",")[1] ?? "";
-        resolve({
-          base64: base64Only,
-          mimeType: "image/jpeg",
-          previewDataUrl: compressedUrl,
-        });
-      };
-      img.src = dataUrl;
+    reader.onload = async () => {
+      try {
+        const result = await resizeDataUrlToJpeg(
+          reader.result as string,
+          file.type || "image/jpeg"
+        );
+        resolve(result);
+      } catch (err) {
+        reject(err);
+      }
     };
     reader.readAsDataURL(file);
   });
@@ -92,7 +111,7 @@ export function ShowCardUploader({
     }
 
     try {
-      const { base64, mimeType, previewDataUrl } = await resizeImageToJpeg(file);
+      const { base64, mimeType, previewDataUrl } = await resizeFileToJpeg(file);
       onImageSelected(base64, mimeType, previewDataUrl);
     } catch (err) {
       const msg =
@@ -100,6 +119,40 @@ export function ShowCardUploader({
           ? err.message
           : "이미지를 불러오는 중 오류가 발생했습니다.";
       onError(msg);
+    }
+  };
+
+  const handleAnalyzeSamplePhoto = async () => {
+    if (isAnalyzing) return;
+    try {
+      const res = await fetch(SAMPLE_SHOWCARD_PATH);
+      if (!res.ok) {
+        throw new Error("예시 쇼카드 이미지를 불러오지 못했습니다.");
+      }
+      const blob = await res.blob();
+      const reader = new FileReader();
+      reader.onerror = () =>
+        onError("예시 쇼카드 이미지를 읽는 중 오류가 발생했습니다.");
+      reader.onload = async () => {
+        try {
+          const { base64, mimeType, previewDataUrl } =
+            await resizeDataUrlToJpeg(reader.result as string, "image/jpeg");
+          onImageSelected(base64, mimeType, previewDataUrl);
+        } catch (err) {
+          onError(
+            err instanceof Error
+              ? err.message
+              : "예시 이미지를 처리하지 못했습니다."
+          );
+        }
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      onError(
+        err instanceof Error
+          ? err.message
+          : "예시 쇼카드 이미지를 불러오지 못했습니다."
+      );
     }
   };
 
@@ -131,7 +184,7 @@ export function ShowCardUploader({
             1. 쇼카드 사진 올리기
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            매장 가격표·행사 택 사진을 올리면 AI가 문구를 자동으로 추출합니다
+            매장 가격표·행사 택 사진을 올리면 AI가 문구와 상품 이미지를 자동 추출합니다
           </p>
         </div>
         {previewUrl && !isAnalyzing && (
@@ -182,7 +235,7 @@ export function ShowCardUploader({
                 쇼카드 내용을 분석하고 있어요...
               </p>
               <p className="text-xs text-purple-700 mt-0.5">
-                행사 유형, 상품명, 가격, 카드 할인 조건을 추출 중입니다
+                행사 유형, 상품명, 가격, 할인 조건, 상품 썸네일을 추출 중입니다
               </p>
             </div>
           </div>
@@ -266,6 +319,35 @@ export function ShowCardUploader({
               <span>카메라 촬영</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* 실제 매장 쇼카드 사진으로 바로 AI 인식 테스트 */}
+      {!isAnalyzing && (
+        <div className="mt-3 flex items-center justify-between gap-3 px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <img
+              src={SAMPLE_SHOWCARD_PATH}
+              alt="실제 편의점 1+1 쇼카드 예시"
+              className="w-9 h-9 rounded-md object-cover border border-slate-200 shrink-0"
+            />
+            <div className="min-w-0">
+              <div className="text-xs font-semibold text-slate-800 truncate">
+                실제 편의점 쇼카드로 테스트
+              </div>
+              <div className="text-[11px] text-slate-500 truncate">
+                첨부된 CU 1+1 쇼카드 사진을 AI로 즉시 분석합니다
+              </div>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleAnalyzeSamplePhoto}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-800 bg-purple-100 hover:bg-purple-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+          >
+            <ScanLine className="w-3.5 h-3.5" />
+            <span>AI 분석 실행</span>
+          </button>
         </div>
       )}
 

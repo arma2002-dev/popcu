@@ -5,14 +5,18 @@ export interface ShowCardData {
   productName: string;
   subInfo: string;
   price: string;
+  priceNote: string;
   cardDiscount: string;
   period: string;
+  productImageBox?: number[];
 }
 
-export interface PosterConfig extends ShowCardData {
+export interface PosterConfig extends Omit<ShowCardData, "productImageBox"> {
   storeName: string;
   productFontSize: number;
   theme: PosterThemeId;
+  productImageUrl: string | null;
+  showProductImage: boolean;
 }
 
 export interface SamplePreset {
@@ -21,5 +25,5 @@ export interface SamplePreset {
   theme: PosterThemeId;
   storeName: string;
   productFontSize: number;
-  data: ShowCardData;
+  data: Omit<ShowCardData, "productImageBox">;
 }

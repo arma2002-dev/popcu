@@ -13,6 +13,50 @@ import { ShowCardUploader } from "./components/ShowCardUploader";
 import { DEFAULT_POSTER_CONFIG, SAMPLE_PRESETS } from "./constants/samples";
 import type { PosterConfig, ShowCardData } from "./types/showcard";
 
+async function cropProductImageFromShowcard(
+  imageDataUrl: string,
+  box: number[]
+): Promise<string | null> {
+  if (box.length !== 4) return null;
+  const [ymin, xmin, ymax, xmax] = box;
+  if (ymax <= ymin || xmax <= xmin) return null;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onerror = () => resolve(null);
+    img.onload = () => {
+      const sx = Math.max(0, Math.floor((xmin / 1000) * img.width));
+      const sy = Math.max(0, Math.floor((ymin / 1000) * img.height));
+      const sw = Math.min(
+        img.width - sx,
+        Math.ceil(((xmax - xmin) / 1000) * img.width)
+      );
+      const sh = Math.min(
+        img.height - sy,
+        Math.ceil(((ymax - ymin) / 1000) * img.height)
+      );
+
+      if (sw < 20 || sh < 20) {
+        resolve(null);
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      canvas.width = sw;
+      canvas.height = sh;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve(null);
+        return;
+      }
+
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
+      resolve(canvas.toDataURL("image/jpeg", 0.92));
+    };
+    img.src = imageDataUrl;
+  });
+}
+
 export default function App() {
   const [config, setConfig] = useState<PosterConfig>(DEFAULT_POSTER_CONFIG);
   const [sampleIndex, setSampleIndex] = useState<number>(0);
@@ -70,14 +114,24 @@ export default function App() {
       }
 
       const extracted = payload.data;
+      const croppedProduct = extracted.productImageBox?.length
+        ? await cropProductImageFromShowcard(
+            previewDataUrl,
+            extracted.productImageBox
+          )
+        : null;
+
       setConfig((prev) => ({
         ...prev,
         eventType: extracted.eventType || prev.eventType,
         productName: extracted.productName || prev.productName,
         subInfo: extracted.subInfo,
         price: extracted.price || prev.price,
+        priceNote: extracted.priceNote || "",
         cardDiscount: extracted.cardDiscount,
         period: extracted.period,
+        productImageUrl: croppedProduct,
+        showProductImage: Boolean(croppedProduct),
       }));
       setAnalysisSuccess(true);
     } catch (error) {
@@ -97,12 +151,15 @@ export default function App() {
     setSampleIndex(nextIndex);
     setErrorMessage(null);
     setAnalysisSuccess(false);
-    setConfig({
+    setConfig((prev) => ({
+      ...prev,
       storeName: preset.storeName,
       theme: preset.theme,
       productFontSize: preset.productFontSize,
       ...preset.data,
-    });
+      productImageUrl: null,
+      showProductImage: false,
+    }));
   };
 
   const handleReset = () => {
@@ -115,10 +172,13 @@ export default function App() {
       productName: "",
       subInfo: "",
       price: "",
+      priceNote: "",
       cardDiscount: "",
       period: "",
       productFontSize: 40,
       theme: config.theme,
+      productImageUrl: null,
+      showProductImage: false,
     });
   };
 
@@ -149,7 +209,6 @@ export default function App() {
       window.setTimeout(() => setExportSuccess(false), 2500);
     } catch {
       try {
-        // Fallback without external font embedding if browser blocks stylesheet CORS
         const dataUrl = await toPng(posterEl, {
           cacheBust: true,
           pixelRatio: 3,
