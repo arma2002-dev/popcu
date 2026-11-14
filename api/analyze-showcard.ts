@@ -90,7 +90,7 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
   }
 
   try {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
     if (!apiKey || apiKey === "MY_GEMINI_API_KEY") {
       sendJson(res, 500, {
         error:

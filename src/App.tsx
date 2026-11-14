@@ -180,7 +180,6 @@ export default function App() {
     setAnalysisSuccess(false);
     setConfig((prev) => ({
       ...prev,
-      storeName: preset.storeName,
       theme: preset.theme,
       productFontSize: preset.productFontSize,
       ...preset.data,
@@ -194,7 +193,6 @@ export default function App() {
     setErrorMessage(null);
     setAnalysisSuccess(false);
     setConfig({
-      storeName: config.storeName,
       eventType: "",
       productName: "",
       subInfo: "",

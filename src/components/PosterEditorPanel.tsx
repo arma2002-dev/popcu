@@ -8,7 +8,6 @@ import {
   ImagePlus,
   SlidersHorizontal,
   Sparkles,
-  Store,
   Tag,
   Trash2,
   Type as TypeIcon,
@@ -135,43 +134,23 @@ export function PosterEditorPanel({
         </div>
 
         <div className={`space-y-4 ${isAnalyzing ? "opacity-60 pointer-events-none" : ""}`}>
-          {/* 지점명 + 행사 유형 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
-            <div>
-              <label
-                htmlFor="input-store-name"
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5"
-              >
-                <Store className="w-3.5 h-3.5 text-slate-400" />
-                <span>지점명 (선택)</span>
-              </label>
-              <input
-                id="input-store-name"
-                type="text"
-                value={config.storeName}
-                onChange={(e) => onChange("storeName", e.target.value)}
-                placeholder="예: CU 진해점"
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
-              />
-            </div>
-
-            <div>
-              <label
-                htmlFor="input-event-type"
-                className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5"
-              >
-                <Tag className="w-3.5 h-3.5 text-slate-400" />
-                <span>행사 유형</span>
-              </label>
-              <input
-                id="input-event-type"
-                type="text"
-                value={config.eventType}
-                onChange={(e) => onChange("eventType", e.target.value)}
-                placeholder="예: 1+1, 2+1, 초특가 할인"
-                className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
-              />
-            </div>
+          {/* 행사 유형 */}
+          <div>
+            <label
+              htmlFor="input-event-type"
+              className="flex items-center gap-1.5 text-xs font-semibold text-slate-700 mb-1.5"
+            >
+              <Tag className="w-3.5 h-3.5 text-slate-400" />
+              <span>행사 유형</span>
+            </label>
+            <input
+              id="input-event-type"
+              type="text"
+              value={config.eventType}
+              onChange={(e) => onChange("eventType", e.target.value)}
+              placeholder="예: 1+1, 2+1, 초특가 할인"
+              className="w-full px-3.5 py-2.5 text-sm bg-slate-50 border border-slate-200 rounded-xl text-slate-900 placeholder:text-slate-400 focus:outline-none focus:bg-white focus:border-slate-900 transition-colors"
+            />
           </div>
 
           {/* 상품 이미지 (자동 추출 또는 직접 첨부) */}

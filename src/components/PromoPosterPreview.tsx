@@ -1,5 +1,5 @@
 import React from "react";
-import { Calendar, CreditCard, Loader2, Sparkles, Store } from "lucide-react";
+import { Calendar, CreditCard, Loader2, Sparkles } from "lucide-react";
 import type { PosterConfig, PosterThemeId } from "../types/showcard";
 
 interface PromoPosterPreviewProps {
@@ -12,7 +12,6 @@ interface ThemeVisualStyle {
   innerBorder: string;
   topGlow: string;
   bottomGlow: string;
-  storeBadge: string;
   kickerText: string;
   eventBadge: string;
   productFrame: string;
@@ -36,7 +35,6 @@ const THEME_STYLES: Record<PosterThemeId, ThemeVisualStyle> = {
     innerBorder: "border border-emerald-300/30",
     topGlow: "bg-emerald-400/20",
     bottomGlow: "bg-purple-400/25",
-    storeBadge: "bg-white/15 border border-white/25 text-white",
     kickerText: "text-emerald-300",
     eventBadge:
       "bg-emerald-400 text-purple-950 shadow-[0_8px_24px_rgba(16,185,129,0.35)]",
@@ -59,7 +57,6 @@ const THEME_STYLES: Record<PosterThemeId, ThemeVisualStyle> = {
     innerBorder: "border border-amber-400/35",
     topGlow: "bg-amber-400/15",
     bottomGlow: "bg-amber-600/20",
-    storeBadge: "bg-amber-400/15 border border-amber-300/35 text-amber-200",
     kickerText: "text-amber-300",
     eventBadge:
       "bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-500 text-zinc-950 shadow-[0_8px_24px_rgba(245,158,11,0.3)]",
@@ -82,7 +79,6 @@ const THEME_STYLES: Record<PosterThemeId, ThemeVisualStyle> = {
     innerBorder: "border border-yellow-300/40",
     topGlow: "bg-yellow-300/20",
     bottomGlow: "bg-orange-400/25",
-    storeBadge: "bg-red-950/45 border border-yellow-300/40 text-yellow-200",
     kickerText: "text-yellow-300",
     eventBadge:
       "bg-yellow-300 text-red-950 shadow-[0_8px_24px_rgba(253,224,71,0.35)]",
@@ -107,7 +103,6 @@ export function PromoPosterPreview({
   isAnalyzing,
 }: PromoPosterPreviewProps) {
   const style = THEME_STYLES[config.theme];
-  const hasStoreName = config.storeName.trim().length > 0;
   const hasEventType = config.eventType.trim().length > 0;
   const hasProductName = config.productName.trim().length > 0;
   const hasSubInfo = config.subInfo.trim().length > 0;
@@ -139,24 +134,15 @@ export function PromoPosterPreview({
           className={`pointer-events-none absolute inset-3 rounded-xl ${style.innerBorder}`}
         />
 
-        {/* 상단 헤더: 지점명 & 행사 배지 */}
+        {/* 상단 헤더: 이벤트 키커 & 행사 배지 */}
         <div className="relative z-10 flex items-start justify-between gap-3">
           <div className="min-w-0">
-            {hasStoreName ? (
-              <div
-                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold tracking-tight ${style.storeBadge}`}
-              >
-                <Store className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">{config.storeName}</span>
-              </div>
-            ) : (
-              <div
-                className={`inline-flex items-center gap-1.5 text-xs font-extrabold tracking-widest uppercase ${style.kickerText}`}
-              >
-                <Sparkles className="w-3.5 h-3.5 shrink-0" />
-                <span>STORE EVENT</span>
-              </div>
-            )}
+            <div
+              className={`inline-flex items-center gap-1.5 text-xs font-extrabold tracking-widest uppercase ${style.kickerText}`}
+            >
+              <Sparkles className="w-3.5 h-3.5 shrink-0" />
+              <span>STORE EVENT</span>
+            </div>
           </div>
 
           {hasEventType && (

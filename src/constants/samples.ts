@@ -1,7 +1,6 @@
 import type { PosterConfig, SamplePreset } from "../types/showcard";
 
 export const DEFAULT_POSTER_CONFIG: PosterConfig = {
-  storeName: "CU 진해점",
   eventType: "1+1",
   productName: "라엘 순면커버 중형 16P",
   subInfo: "중형 16개입 · CU 키핑 가능",
@@ -20,7 +19,6 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     id: "regular-rael",
     label: "1+1 CU 쇼카드 예시",
     theme: "regular",
-    storeName: "CU 진해점",
     productFontSize: 38,
     data: {
       eventType: "1+1",
@@ -36,7 +34,6 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     id: "regular-bakery",
     label: "1+1 디저트 행사 샘플",
     theme: "regular",
-    storeName: "CU 진해점",
     productFontSize: 40,
     data: {
       eventType: "1+1",
@@ -52,7 +49,6 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     id: "liquor-night",
     label: "주류/야간 특가 샘플",
     theme: "liquor",
-    storeName: "CU 진해점",
     productFontSize: 38,
     data: {
       eventType: "야간 특가",
@@ -68,7 +64,6 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     id: "hotdeal-snack",
     label: "초특가/핫딜 샘플",
     theme: "hotdeal",
-    storeName: "CU 진해점",
     productFontSize: 38,
     data: {
       eventType: "초특가 할인",

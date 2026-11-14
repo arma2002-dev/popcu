@@ -12,7 +12,6 @@ export interface ShowCardData {
 }
 
 export interface PosterConfig extends Omit<ShowCardData, "productImageBox"> {
-  storeName: string;
   productFontSize: number;
   theme: PosterThemeId;
   productImageUrl: string | null;
@@ -23,7 +22,6 @@ export interface SamplePreset {
   id: string;
   label: string;
   theme: PosterThemeId;
-  storeName: string;
   productFontSize: number;
   data: Omit<ShowCardData, "productImageBox">;
 }
