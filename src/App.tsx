@@ -113,8 +113,13 @@ export default function App() {
 
       if (!response.ok || !payload?.data) {
         if (response.status === 404) {
+          const host = window.location.hostname;
+          const isSharedHost = host.startsWith("ais-pre-");
+          const snippet = rawText.replace(/\s+/g, " ").trim().slice(0, 80);
           throw new Error(
-            "이미지 분석 서버 경로(/api/analyze-showcard)를 찾을 수 없습니다. 페이지를 새로고침하거나 개발 서버 환경에서 다시 시도해 주세요."
+            isSharedHost
+              ? `공유 URL(${host})에서는 백엔드 API(/api/analyze-showcard)가 실행되지 않아 404가 발생했습니다. AI Studio 편집기의 개발 미리보기(ais-dev) 화면에서 실행해 주세요.`
+              : `이미지 분석 서버 경로(/api/analyze-showcard)를 찾을 수 없습니다. (호스트: ${host}, 응답: ${snippet || "404"})`
           );
         }
         if (response.status === 413) {
