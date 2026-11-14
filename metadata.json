@@ -1,0 +1,6 @@
+{
+  "name": "편의점 쇼카드 홍보물 메이커",
+  "description": "편의점 쇼카드(가격표) 사진을 AI로 분석해 인스타그램, 카카오톡 채널, 매장 POP용 고화질 홍보 포스터를 즉시 제작하는 웹 애플리케이션",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
