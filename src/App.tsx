@@ -112,6 +112,11 @@ export default function App() {
       }
 
       if (!response.ok || !payload?.data) {
+        if (response.status === 404) {
+          throw new Error(
+            "이미지 분석 서버 경로(/api/analyze-showcard)를 찾을 수 없습니다. 페이지를 새로고침하거나 개발 서버 환경에서 다시 시도해 주세요."
+          );
+        }
         if (response.status === 413) {
           throw new Error(
             "사진 파일 용량이 너무 커서 서버에 전달하지 못했습니다. 다른 사진으로 다시 시도해 주세요."

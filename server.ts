@@ -8,7 +8,22 @@ import { GoogleGenAI, ThinkingLevel, Type } from "@google/genai";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const PORT = Number(process.env.PORT) || 3000;
+function resolvePort(): number {
+  const portFlagIndex = process.argv.indexOf("--port");
+  if (portFlagIndex !== -1 && process.argv[portFlagIndex + 1]) {
+    const parsed = Number(process.argv[portFlagIndex + 1]);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+  const envPort = Number(process.env.PORT);
+  if (Number.isFinite(envPort) && envPort > 0) {
+    return envPort;
+  }
+  return 3000;
+}
+
+const PORT = resolvePort();
 
 function getGeminiClient(): GoogleGenAI {
   const apiKey = process.env.GEMINI_API_KEY;
@@ -117,6 +132,14 @@ async function startServer() {
 
   app.use(express.json({ limit: "20mb" }));
 
+  app.get("/api/health", (_req, res) => {
+    const apiKey = process.env.GEMINI_API_KEY;
+    res.json({
+      ok: true,
+      hasApiKey: Boolean(apiKey && apiKey !== "MY_GEMINI_API_KEY"),
+    });
+  });
+
   app.post("/api/analyze-showcard", async (req, res) => {
     try {
       const { imageBase64, mimeType } = req.body as {
@@ -171,10 +194,8 @@ async function startServer() {
       } catch (primaryErr) {
         const errMsg =
           primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
+        console.warn("Primary model error:", errMsg);
         if (errMsg.includes("404") || errMsg.includes("NOT_FOUND")) {
-          console.warn(
-            "gemini-2.5-flash unavailable, falling back to gemini-4-hydrogen"
-          );
           response = await analyzeWithModel(
             ai,
             "gemini-4-hydrogen",
@@ -252,7 +273,6 @@ async function startServer() {
       res.status(500).json({
         error:
           "쇼카드 이미지를 분석하는 중 문제가 발생했습니다. 선명한 사진으로 다시 시도해 주세요.",
-        detail: message.slice(0, 200),
       });
     }
   });
