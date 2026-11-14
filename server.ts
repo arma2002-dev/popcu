@@ -188,8 +188,12 @@ async function startServer() {
         }
       }
 
-      const rawText = (response.text ?? "{}").trim();
-      const parsed = JSON.parse(rawText);
+      const rawText = (response.text ?? "{}")
+        .trim()
+        .replace(/^```(?:json)?\s*/i, "")
+        .replace(/\s*```$/i, "")
+        .trim();
+      const parsed = JSON.parse(rawText || "{}");
 
       const box = Array.isArray(parsed.productImageBox)
         ? parsed.productImageBox

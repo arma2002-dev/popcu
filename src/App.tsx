@@ -101,15 +101,27 @@ export default function App() {
         }),
       });
 
-      const payload = (await response.json()) as {
-        data?: ShowCardData;
-        error?: string;
-      };
+      const rawText = await response.text();
+      let payload: { data?: ShowCardData; error?: string } | null = null;
+      try {
+        payload = rawText
+          ? (JSON.parse(rawText) as { data?: ShowCardData; error?: string })
+          : null;
+      } catch {
+        payload = null;
+      }
 
-      if (!response.ok || !payload.data) {
+      if (!response.ok || !payload?.data) {
+        if (response.status === 413) {
+          throw new Error(
+            "사진 파일 용량이 너무 커서 서버에 전달하지 못했습니다. 다른 사진으로 다시 시도해 주세요."
+          );
+        }
+        if (payload?.error && /[가-힣]/.test(payload.error)) {
+          throw new Error(payload.error);
+        }
         throw new Error(
-          payload.error ||
-            "쇼카드 이미지를 분석하지 못했습니다. 다른 사진으로 시도해 주세요."
+          `쇼카드 이미지를 분석하지 못했습니다. (응답 코드: ${response.status}) 잠시 후 다시 시도해 주세요.`
         );
       }
 
@@ -136,9 +148,9 @@ export default function App() {
       setAnalysisSuccess(true);
     } catch (error) {
       const msg =
-        error instanceof Error
+        error instanceof Error && /[가-힣]/.test(error.message)
           ? error.message
-          : "쇼카드 분석 중 오류가 발생했습니다. 다시 시도해 주세요.";
+          : "쇼카드 분석 중 네트워크 또는 서버 응답 오류가 발생했습니다. 잠시 후 다시 시도해 주세요.";
       setErrorMessage(msg);
     } finally {
       setIsAnalyzing(false);

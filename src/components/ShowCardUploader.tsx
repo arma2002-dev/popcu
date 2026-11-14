@@ -20,53 +20,85 @@ interface ShowCardUploaderProps {
 }
 
 const SAMPLE_SHOWCARD_PATH = "/assets/aistudio/IMG_4819_a761a157.jpeg";
+const MAX_BASE64_CHARS = 650_000; // ~485KB binary, safely under 1MB proxy limits
 
-async function resizeDataUrlToJpeg(
-  dataUrl: string,
-  fallbackMime = "image/jpeg"
+function isAcceptedImageFile(file: File): boolean {
+  if (file.type && file.type.startsWith("image/")) {
+    return true;
+  }
+  return /\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(file.name);
+}
+
+async function compressImageToSafeJpeg(
+  sourceUrl: string
 ): Promise<{ base64: string; mimeType: string; previewDataUrl: string }> {
   return new Promise((resolve, reject) => {
     const img = new Image();
-    img.onerror = () => reject(new Error("지원하지 않는 이미지 형식입니다."));
+    img.onerror = () =>
+      reject(
+        new Error(
+          "지원하지 않는 이미지 형식입니다. JPG 또는 PNG 사진을 사용해 주세요."
+        )
+      );
     img.onload = () => {
-      const maxDim = 1600;
-      let { width, height } = img;
+      const steps: Array<{ maxDim: number; quality: number }> = [
+        { maxDim: 1280, quality: 0.82 },
+        { maxDim: 1024, quality: 0.74 },
+        { maxDim: 860, quality: 0.65 },
+      ];
 
-      if (width > maxDim || height > maxDim) {
-        if (width >= height) {
-          height = Math.round((height * maxDim) / width);
-          width = maxDim;
-        } else {
-          width = Math.round((width * maxDim) / height);
-          height = maxDim;
+      let finalDataUrl = "";
+      let finalBase64 = "";
+
+      for (const step of steps) {
+        let { width, height } = img;
+        if (width > step.maxDim || height > step.maxDim) {
+          if (width >= height) {
+            height = Math.round((height * step.maxDim) / width);
+            width = step.maxDim;
+          } else {
+            width = Math.round((width * step.maxDim) / height);
+            height = step.maxDim;
+          }
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = Math.max(1, width);
+        canvas.height = Math.max(1, height);
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          reject(new Error("이미지 캔버스를 초기화할 수 없습니다."));
+          return;
+        }
+
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+
+        const dataUrl = canvas.toDataURL("image/jpeg", step.quality);
+        const commaIdx = dataUrl.indexOf(",");
+        const base64Only = commaIdx >= 0 ? dataUrl.slice(commaIdx + 1) : dataUrl;
+
+        finalDataUrl = dataUrl;
+        finalBase64 = base64Only;
+
+        if (base64Only.length <= MAX_BASE64_CHARS) {
+          break;
         }
       }
 
-      const canvas = document.createElement("canvas");
-      canvas.width = width;
-      canvas.height = height;
-      const ctx = canvas.getContext("2d");
-
-      if (!ctx) {
-        const base64Only = dataUrl.split(",")[1] ?? "";
-        resolve({
-          base64: base64Only,
-          mimeType: fallbackMime,
-          previewDataUrl: dataUrl,
-        });
+      if (!finalBase64) {
+        reject(new Error("이미지 데이터를 변환하지 못했습니다."));
         return;
       }
 
-      ctx.drawImage(img, 0, 0, width, height);
-      const compressedUrl = canvas.toDataURL("image/jpeg", 0.9);
-      const base64Only = compressedUrl.split(",")[1] ?? "";
       resolve({
-        base64: base64Only,
+        base64: finalBase64,
         mimeType: "image/jpeg",
-        previewDataUrl: compressedUrl,
+        previewDataUrl: finalDataUrl,
       });
     };
-    img.src = dataUrl;
+    img.src = sourceUrl;
   });
 }
 
@@ -78,10 +110,7 @@ async function resizeFileToJpeg(
     reader.onerror = () => reject(new Error("이미지 파일을 읽지 못했습니다."));
     reader.onload = async () => {
       try {
-        const result = await resizeDataUrlToJpeg(
-          reader.result as string,
-          file.type || "image/jpeg"
-        );
+        const result = await compressImageToSafeJpeg(reader.result as string);
         resolve(result);
       } catch (err) {
         reject(err);
@@ -105,7 +134,7 @@ export function ShowCardUploader({
 
   const handleFile = async (file: File | undefined) => {
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
+    if (!isAcceptedImageFile(file)) {
       onError("이미지 파일(JPG, PNG, WEBP 등)만 업로드할 수 있습니다.");
       return;
     }
@@ -115,9 +144,9 @@ export function ShowCardUploader({
       onImageSelected(base64, mimeType, previewDataUrl);
     } catch (err) {
       const msg =
-        err instanceof Error
+        err instanceof Error && /[가-힣]/.test(err.message)
           ? err.message
-          : "이미지를 불러오는 중 오류가 발생했습니다.";
+          : "이미지를 처리하는 중 오류가 발생했습니다. JPG 또는 PNG 사진으로 다시 시도해 주세요.";
       onError(msg);
     }
   };
@@ -136,23 +165,23 @@ export function ShowCardUploader({
       reader.onload = async () => {
         try {
           const { base64, mimeType, previewDataUrl } =
-            await resizeDataUrlToJpeg(reader.result as string, "image/jpeg");
+            await compressImageToSafeJpeg(reader.result as string);
           onImageSelected(base64, mimeType, previewDataUrl);
         } catch (err) {
-          onError(
-            err instanceof Error
+          const msg =
+            err instanceof Error && /[가-힣]/.test(err.message)
               ? err.message
-              : "예시 이미지를 처리하지 못했습니다."
-          );
+              : "예시 이미지를 처리하지 못했습니다.";
+          onError(msg);
         }
       };
       reader.readAsDataURL(blob);
     } catch (err) {
-      onError(
-        err instanceof Error
+      const msg =
+        err instanceof Error && /[가-힣]/.test(err.message)
           ? err.message
-          : "예시 쇼카드 이미지를 불러오지 못했습니다."
-      );
+          : "예시 쇼카드 이미지를 불러오지 못했습니다.";
+      onError(msg);
     }
   };
 
