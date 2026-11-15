@@ -200,7 +200,7 @@ export default function App() {
       priceNote: "",
       cardDiscount: "",
       period: "",
-      productFontSize: 40,
+      productFontSize: 34,
       theme: config.theme,
       productImageUrl: null,
       showProductImage: false,

@@ -8,7 +8,7 @@ export const DEFAULT_POSTER_CONFIG: PosterConfig = {
   priceNote: "1+1 적용 시 개당 5,950원",
   cardDiscount: "CU Npay 추가할인 (포켓CU 확인)",
   period: "11.1 ~ 11.30",
-  productFontSize: 38,
+  productFontSize: 34,
   theme: "cu-top",
   productImageUrl: null,
   showProductImage: true,
@@ -19,7 +19,7 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     id: "cu-top-rael",
     label: "상단 캐릭터형 · 1+1 쇼카드 예시",
     theme: "cu-top",
-    productFontSize: 38,
+    productFontSize: 34,
     data: {
       eventType: "1+1",
       productName: "라엘 순면커버 중형 16P",
@@ -34,7 +34,7 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     id: "cu-bottom-bakery",
     label: "하단 매장형 · 디저트 행사 샘플",
     theme: "cu-bottom",
-    productFontSize: 38,
+    productFontSize: 34,
     data: {
       eventType: "1+1",
       productName: "연세우유 생크림빵 시리즈",

@@ -32,9 +32,7 @@ export function PromoPosterPreview({
     <div className="relative w-full max-w-[440px] mx-auto">
       <div
         id="promo-poster"
-        className={`relative w-full aspect-[4/5] overflow-hidden rounded-2xl bg-white border border-slate-200/80 font-poster select-none flex flex-col justify-between px-6 sm:px-7 ${
-          isTopTemplate ? "pt-[21%] pb-5" : "pt-5 pb-[26%]"
-        }`}
+        className="relative w-full aspect-[4/5] overflow-hidden rounded-2xl bg-white border border-slate-200/80 font-poster select-none"
       >
         {/* 배경 CU 템플릿 이미지 */}
         <img
@@ -49,91 +47,100 @@ export function PromoPosterPreview({
           }`}
         />
 
-        {/* 중앙 메인 콘텐츠 영역 */}
-        <div className="relative z-10 my-auto flex flex-col items-center text-center">
-          {/* 행사 유형 배지 */}
-          {hasEventType && (
-            <div className="mb-2.5 inline-flex items-center justify-center px-5 py-1 rounded-full bg-[#652D90] text-white text-base sm:text-lg font-black tracking-tight shadow-[0_6px_16px_rgba(101,45,144,0.28)] border-2 border-[#A5CF4C]">
-              {config.eventType}
-            </div>
-          )}
-
-          {/* 상품 이미지 (선택) */}
-          {showImage && (
-            <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-2xl p-1.5 mb-2.5 bg-white border border-purple-200 shadow-sm flex items-center justify-center overflow-hidden">
-              <img
-                src={config.productImageUrl ?? ""}
-                alt={config.productName || "행사 상품"}
-                className="w-full h-full object-contain rounded-lg"
-              />
-            </div>
-          )}
-
-          {/* 상품명 */}
-          <h3
-            style={{ fontSize: `${config.productFontSize}px` }}
-            className="font-black leading-[1.16] tracking-tight break-keep text-balance text-slate-900"
-          >
-            {hasProductName ? config.productName : "상품명을 입력해 주세요"}
-          </h3>
-
-          {/* 서브 정보 */}
-          {hasSubInfo && (
-            <p className="mt-2 text-sm sm:text-[15px] font-semibold leading-snug break-keep max-w-[92%] text-slate-600">
-              {config.subInfo}
-            </p>
-          )}
-
-          {/* 가격 영역 */}
-          <div className="mt-3.5 flex flex-col items-center">
-            <span className="text-[11px] font-extrabold tracking-wider text-[#652D90] mb-0.5">
-              행사 판매가
-            </span>
-            <div className="text-4xl sm:text-[44px] font-black tracking-tight leading-none font-mono-num text-[#E11D48]">
-              {hasPrice ? config.price : "0원"}
-            </div>
-            {hasPriceNote && (
-              <div className="mt-2 px-3 py-1 rounded-lg text-xs font-extrabold tracking-tight bg-[#F3EBF9] border border-[#D8BFE8] text-[#56227D]">
-                {config.priceNote}
+        {/* 템플릿 아트워크를 가리지 않는 안전 영역 콘텐츠 */}
+        <div
+          className={`absolute inset-x-0 z-10 flex flex-col justify-between px-5 sm:px-7 ${
+            isTopTemplate
+              ? "top-[23.5%] bottom-[3.5%]"
+              : "top-[3.5%] bottom-[27.5%]"
+          }`}
+        >
+          {/* 중앙 메인 콘텐츠 영역 */}
+          <div className="my-auto flex flex-col items-center text-center">
+            {/* 행사 유형 배지 */}
+            {hasEventType && (
+              <div className="mb-1.5 inline-flex items-center justify-center px-4 py-0.5 rounded-full bg-[#652D90] text-white text-sm sm:text-base font-black tracking-tight shadow-[0_4px_12px_rgba(101,45,144,0.25)] border-2 border-[#A5CF4C]">
+                {config.eventType}
               </div>
             )}
-          </div>
-        </div>
 
-        {/* 하단 강조 박스: 카드 즉시할인 & 행사 기간 */}
-        <div className="relative z-10 mt-3">
-          {hasCardDiscount || hasPeriod ? (
-            <div className="rounded-xl p-3 sm:p-3.5 bg-[#5E258A] text-white shadow-md border border-[#A5CF4C]/60">
-              {hasCardDiscount && (
-                <div className="flex items-center gap-2.5">
-                  <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 bg-[#A5CF4C] text-[#3B1259]">
-                    <CreditCard className="w-4 h-4" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="text-[10px] font-extrabold tracking-tight text-[#D7F57A]">
-                      추가 결제 혜택
-                    </div>
-                    <div className="text-xs sm:text-sm font-extrabold leading-snug break-keep text-white">
-                      {config.cardDiscount}
-                    </div>
-                  </div>
-                </div>
-              )}
+            {/* 상품 이미지 (선택) */}
+            {showImage && (
+              <div className="w-16 h-16 sm:w-[72px] sm:h-[72px] rounded-xl p-1 mb-1.5 bg-white border border-purple-200 shadow-sm flex items-center justify-center overflow-hidden">
+                <img
+                  src={config.productImageUrl ?? ""}
+                  alt={config.productName || "행사 상품"}
+                  className="w-full h-full object-contain rounded-lg"
+                />
+              </div>
+            )}
 
-              {hasCardDiscount && hasPeriod && (
-                <div className="my-2 border-t border-white/15" />
-              )}
+            {/* 상품명 */}
+            <h3
+              style={{ fontSize: `${config.productFontSize}px` }}
+              className="font-black leading-[1.12] tracking-tight break-keep text-balance text-slate-900"
+            >
+              {hasProductName ? config.productName : "상품명을 입력해 주세요"}
+            </h3>
 
-              {hasPeriod && (
-                <div className="flex items-center justify-center gap-1.5 text-xs font-bold text-purple-100">
-                  <Calendar className="w-3.5 h-3.5 shrink-0 text-[#D7F57A]" />
-                  <span>행사 기간: {config.period}</span>
+            {/* 서브 정보 */}
+            {hasSubInfo && (
+              <p className="mt-1 text-xs sm:text-[13px] font-semibold leading-snug break-keep max-w-[92%] text-slate-600">
+                {config.subInfo}
+              </p>
+            )}
+
+            {/* 가격 영역 */}
+            <div className="mt-2 flex flex-col items-center">
+              <span className="text-[10px] font-extrabold tracking-wider text-[#652D90] mb-0.5">
+                행사 판매가
+              </span>
+              <div className="text-3xl sm:text-[36px] font-black tracking-tight leading-none font-mono-num text-[#E11D48]">
+                {hasPrice ? config.price : "0원"}
+              </div>
+              {hasPriceNote && (
+                <div className="mt-1.5 px-2.5 py-0.5 rounded-lg text-[11px] font-extrabold tracking-tight bg-[#F3EBF9] border border-[#D8BFE8] text-[#56227D]">
+                  {config.priceNote}
                 </div>
               )}
             </div>
-          ) : (
-            <div className="h-2" />
-          )}
+          </div>
+
+          {/* 하단 강조 박스: 카드 즉시할인 & 행사 기간 */}
+          <div className="mt-2 shrink-0">
+            {hasCardDiscount || hasPeriod ? (
+              <div className="rounded-xl px-3 py-2 sm:px-3.5 sm:py-2.5 bg-[#5E258A] text-white shadow-md border border-[#A5CF4C]/60">
+                {hasCardDiscount && (
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0 bg-[#A5CF4C] text-[#3B1259]">
+                      <CreditCard className="w-3.5 h-3.5" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="text-[10px] font-extrabold tracking-tight text-[#D7F57A] leading-tight">
+                        추가 결제 혜택
+                      </div>
+                      <div className="text-xs sm:text-[13px] font-extrabold leading-snug break-keep text-white">
+                        {config.cardDiscount}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {hasCardDiscount && hasPeriod && (
+                  <div className="my-1.5 border-t border-white/15" />
+                )}
+
+                {hasPeriod && (
+                  <div className="flex items-center justify-center gap-1.5 text-[11px] sm:text-xs font-bold text-purple-100">
+                    <Calendar className="w-3.5 h-3.5 shrink-0 text-[#D7F57A]" />
+                    <span>행사 기간: {config.period}</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="h-1" />
+            )}
+          </div>
         </div>
 
         {/* AI 분석 중 오버레이 */}
