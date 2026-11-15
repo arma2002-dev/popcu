@@ -1,5 +1,6 @@
 import "dotenv/config";
 import express from "express";
+import http from "node:http";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { createServer as createViteServer } from "vite";
@@ -129,6 +130,7 @@ async function analyzeWithModel(
 
 async function startServer() {
   const app = express();
+  const httpServer = http.createServer(app);
 
   app.use(express.json({ limit: "20mb" }));
 
@@ -277,11 +279,43 @@ async function startServer() {
     }
   });
 
+  await new Promise<void>((resolve) => {
+    httpServer.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://0.0.0.0:${PORT}`);
+      resolve();
+    });
+  });
+
   if (process.env.NODE_ENV !== "production") {
+    const hmrEnabled = process.env.DISABLE_HMR !== "true";
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+        hmr: hmrEnabled ? { server: httpServer } : false,
+        ...(hmrEnabled ? {} : { ws: false as const }),
+      },
       appType: "spa",
     });
+
+    if (!hmrEnabled) {
+      app.get("/@vite/client", async (_req, res, next) => {
+        try {
+          const result = await vite.transformRequest("/@vite/client");
+          if (!result) {
+            next();
+            return;
+          }
+          const patched = result.code.replace(
+            "transport.connect(createHMRHandler(handleMessage));",
+            "/* HMR disabled: skip WebSocket connect */"
+          );
+          res.type("application/javascript").send(patched);
+        } catch (err) {
+          next(err);
+        }
+      });
+    }
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(__dirname, "dist");
@@ -290,10 +324,6 @@ async function startServer() {
       res.sendFile(path.join(distPath, "index.html"));
     });
   }
-
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://0.0.0.0:${PORT}`);
-  });
 }
 
 startServer();

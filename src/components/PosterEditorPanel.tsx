@@ -4,14 +4,11 @@ import {
   CreditCard,
   Eye,
   EyeOff,
-  Flame,
   ImagePlus,
   SlidersHorizontal,
-  Sparkles,
   Tag,
   Trash2,
   Type as TypeIcon,
-  Wine,
 } from "lucide-react";
 import type { PosterConfig, PosterThemeId } from "../types/showcard";
 
@@ -25,29 +22,19 @@ const THEME_OPTIONS: Array<{
   id: PosterThemeId;
   label: string;
   subtitle: string;
-  swatchClass: string;
-  icon: React.ComponentType<{ className?: string }>;
+  thumbnailSrc: string;
 }> = [
   {
-    id: "regular",
-    label: "정기 홍보물",
-    subtitle: "퍼플 · 민트",
-    swatchClass: "bg-gradient-to-br from-purple-700 via-indigo-800 to-purple-900",
-    icon: Sparkles,
+    id: "cu-top",
+    label: "상단 캐릭터형",
+    subtitle: "Nice to CU 상단 배너",
+    thumbnailSrc: "/assets/aistudio/IMG_4822_5a206e27.png",
   },
   {
-    id: "liquor",
-    label: "주류/야간 특가",
-    subtitle: "다크 · 골드",
-    swatchClass: "bg-gradient-to-br from-zinc-900 via-neutral-900 to-amber-950",
-    icon: Wine,
-  },
-  {
-    id: "hotdeal",
-    label: "초특가/핫딜",
-    subtitle: "레드 · 옐로우",
-    swatchClass: "bg-gradient-to-br from-red-600 via-rose-700 to-red-900",
-    icon: Flame,
+    id: "cu-bottom",
+    label: "하단 매장형",
+    subtitle: "언제나, 가까이 CU♡ 하단 배너",
+    thumbnailSrc: "/assets/aistudio/IMG_4823_762224f2.png",
   },
 ];
 
@@ -77,42 +64,45 @@ export function PosterEditorPanel({
             2. 포스터 디자인 테마
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            상품 성격에 맞는 홍보물 분위기를 선택하세요
+            사용할 CU 공식 홍보물 템플릿 배경을 선택하세요
           </p>
         </div>
 
-        <div className="grid grid-cols-3 gap-2.5">
+        <div className="grid grid-cols-2 gap-3">
           {THEME_OPTIONS.map((theme) => {
-            const Icon = theme.icon;
             const isActive = config.theme === theme.id;
             return (
               <button
                 key={theme.id}
                 type="button"
                 onClick={() => onChange("theme", theme.id)}
-                className={`group text-left p-3 rounded-xl border transition-all cursor-pointer ${
+                className={`group text-left p-3 rounded-xl border transition-all cursor-pointer flex items-center gap-3 ${
                   isActive
-                    ? "border-slate-900 bg-slate-50 ring-1 ring-slate-900"
+                    ? "border-purple-700 bg-purple-50/50 ring-1 ring-purple-700"
                     : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50/50"
                 }`}
               >
-                <div className="flex items-center justify-between gap-2 mb-2.5">
-                  <span
-                    className={`w-7 h-7 rounded-lg ${theme.swatchClass} flex items-center justify-center text-white shrink-0`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                  </span>
-                  {isActive && (
-                    <span className="text-[11px] font-bold text-slate-900 whitespace-nowrap">
-                      선택됨
+                <div className="w-12 h-16 rounded-lg border border-slate-200 bg-white overflow-hidden shrink-0">
+                  <img
+                    src={theme.thumbnailSrc}
+                    alt={theme.label}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-1">
+                    <span className="text-xs font-bold text-slate-900 truncate">
+                      {theme.label}
                     </span>
-                  )}
-                </div>
-                <div className="text-xs font-bold text-slate-900 truncate">
-                  {theme.label}
-                </div>
-                <div className="text-[11px] text-slate-500 mt-0.5 truncate">
-                  {theme.subtitle}
+                    {isActive && (
+                      <span className="text-[11px] font-bold text-purple-700 whitespace-nowrap shrink-0">
+                        선택됨
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    {theme.subtitle}
+                  </div>
                 </div>
               </button>
             );

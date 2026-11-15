@@ -9,16 +9,16 @@ export const DEFAULT_POSTER_CONFIG: PosterConfig = {
   cardDiscount: "CU Npay 추가할인 (포켓CU 확인)",
   period: "11.1 ~ 11.30",
   productFontSize: 38,
-  theme: "regular",
+  theme: "cu-top",
   productImageUrl: null,
   showProductImage: true,
 };
 
 export const SAMPLE_PRESETS: SamplePreset[] = [
   {
-    id: "regular-rael",
-    label: "1+1 CU 쇼카드 예시",
-    theme: "regular",
+    id: "cu-top-rael",
+    label: "상단 캐릭터형 · 1+1 쇼카드 예시",
+    theme: "cu-top",
     productFontSize: 38,
     data: {
       eventType: "1+1",
@@ -31,10 +31,10 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     },
   },
   {
-    id: "regular-bakery",
-    label: "1+1 디저트 행사 샘플",
-    theme: "regular",
-    productFontSize: 40,
+    id: "cu-bottom-bakery",
+    label: "하단 매장형 · 디저트 행사 샘플",
+    theme: "cu-bottom",
+    productFontSize: 38,
     data: {
       eventType: "1+1",
       productName: "연세우유 생크림빵 시리즈",
@@ -46,12 +46,12 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     },
   },
   {
-    id: "liquor-night",
-    label: "주류/야간 특가 샘플",
-    theme: "liquor",
-    productFontSize: 38,
+    id: "cu-top-beer",
+    label: "상단 캐릭터형 · 주류 번들 샘플",
+    theme: "cu-top",
+    productFontSize: 36,
     data: {
-      eventType: "야간 특가",
+      eventType: "주말 특가",
       productName: "아사히 수퍼드라이 생맥주 캔",
       subInfo: "340ml 4캔 번들 · 거품이 풍성한 풀오픈탭",
       price: "11,000원",
@@ -61,10 +61,10 @@ export const SAMPLE_PRESETS: SamplePreset[] = [
     },
   },
   {
-    id: "hotdeal-snack",
-    label: "초특가/핫딜 샘플",
-    theme: "hotdeal",
-    productFontSize: 38,
+    id: "cu-bottom-lunchbox",
+    label: "하단 매장형 · 간편식 할인 샘플",
+    theme: "cu-bottom",
+    productFontSize: 36,
     data: {
       eventType: "초특가 할인",
       productName: "백종원 고기듬뿍 제육 도시락",

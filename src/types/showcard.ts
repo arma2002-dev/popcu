@@ -1,4 +1,4 @@
-export type PosterThemeId = "regular" | "liquor" | "hotdeal";
+export type PosterThemeId = "cu-top" | "cu-bottom";
 
 export interface ShowCardData {
   eventType: string;
