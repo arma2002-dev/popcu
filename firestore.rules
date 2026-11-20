@@ -1,0 +1,205 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global Safety Net: Deny all access by default
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isVerifiedUser() {
+      return isSignedIn() && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isVerifiedUser() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTheme(theme) {
+      return theme is string && theme.size() <= 20 && (theme == 'cu-top' || theme == 'cu-bottom');
+    }
+
+    function isValidSource(source) {
+      return source is string && source.size() <= 20 && (source == 'ai-scan' || source == 'manual' || source == 'sample');
+    }
+
+    function isValidPosterFields(data) {
+      return data.eventType is string && data.eventType.size() <= 60
+        && data.productName is string && data.productName.size() <= 150
+        && data.subInfo is string && data.subInfo.size() <= 200
+        && data.price is string && data.price.size() <= 60
+        && data.priceNote is string && data.priceNote.size() <= 150
+        && data.cardDiscount is string && data.cardDiscount.size() <= 200
+        && data.period is string && data.period.size() <= 120
+        && data.productFontSize is number && data.productFontSize >= 20 && data.productFontSize <= 56
+        && isValidTheme(data.theme)
+        && data.productImageUrl is string && data.productImageUrl.size() <= 120000
+        && data.showProductImage is bool;
+    }
+
+    function isValidUserWorkspace(data, userId) {
+      return data.keys().hasAll([
+          'userId',
+          'activePosterId',
+          'eventType',
+          'productName',
+          'subInfo',
+          'price',
+          'priceNote',
+          'cardDiscount',
+          'period',
+          'productFontSize',
+          'theme',
+          'productImageUrl',
+          'showProductImage',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'activePosterId',
+          'eventType',
+          'productName',
+          'subInfo',
+          'price',
+          'priceNote',
+          'cardDiscount',
+          'period',
+          'productFontSize',
+          'theme',
+          'productImageUrl',
+          'showProductImage',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.userId is string && isValidId(data.userId) && data.userId == userId
+        && data.activePosterId is string && data.activePosterId.size() <= 128
+        && isValidPosterFields(data)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidPosterHistoryItem(data, userId) {
+      return data.keys().hasAll([
+          'userId',
+          'eventType',
+          'productName',
+          'subInfo',
+          'price',
+          'priceNote',
+          'cardDiscount',
+          'period',
+          'productFontSize',
+          'theme',
+          'productImageUrl',
+          'showProductImage',
+          'source',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'userId',
+          'eventType',
+          'productName',
+          'subInfo',
+          'price',
+          'priceNote',
+          'cardDiscount',
+          'period',
+          'productFontSize',
+          'theme',
+          'productImageUrl',
+          'showProductImage',
+          'source',
+          'createdAt',
+          'updatedAt'
+        ])
+        && data.userId is string && isValidId(data.userId) && data.userId == userId
+        && isValidPosterFields(data)
+        && isValidSource(data.source)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    match /users/{userId}/workspace/{workspaceId} {
+      allow get: if isOwner(userId) && isValidId(workspaceId) && workspaceId == 'current';
+      allow list: if false;
+      allow create: if isOwner(userId)
+        && isValidId(workspaceId)
+        && workspaceId == 'current'
+        && isValidUserWorkspace(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(workspaceId)
+        && workspaceId == 'current'
+        && isValidUserWorkspace(incoming(), userId)
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'activePosterId',
+          'eventType',
+          'productName',
+          'subInfo',
+          'price',
+          'priceNote',
+          'cardDiscount',
+          'period',
+          'productFontSize',
+          'theme',
+          'productImageUrl',
+          'showProductImage',
+          'updatedAt'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(workspaceId) && workspaceId == 'current';
+    }
+
+    match /users/{userId}/posters/{posterId} {
+      allow get: if isOwner(userId) && isValidId(posterId);
+      allow list: if isOwner(userId) && resource.data.userId == request.auth.uid;
+      allow create: if isOwner(userId)
+        && isValidId(posterId)
+        && isValidPosterHistoryItem(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+      allow update: if isOwner(userId)
+        && isValidId(posterId)
+        && isValidPosterHistoryItem(incoming(), userId)
+        && incoming().userId == existing().userId
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && incoming().diff(existing()).affectedKeys().hasOnly([
+          'eventType',
+          'productName',
+          'subInfo',
+          'price',
+          'priceNote',
+          'cardDiscount',
+          'period',
+          'productFontSize',
+          'theme',
+          'productImageUrl',
+          'showProductImage',
+          'source',
+          'updatedAt'
+        ]);
+      allow delete: if isOwner(userId) && isValidId(posterId);
+    }
+  }
+}

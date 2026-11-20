@@ -1,17 +1,39 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { onAuthStateChanged, type User } from "firebase/auth";
 import { toPng } from "html-to-image";
 import {
+  BookmarkPlus,
   Check,
+  Cloud,
+  CloudOff,
   Download,
+  History,
   Loader2,
+  LogIn,
+  LogOut,
   RotateCcw,
   Wand2,
 } from "lucide-react";
 import { PosterEditorPanel } from "./components/PosterEditorPanel";
+import { PosterHistoryPanel } from "./components/PosterHistoryPanel";
 import { PromoPosterPreview } from "./components/PromoPosterPreview";
 import { ShowCardUploader } from "./components/ShowCardUploader";
 import { DEFAULT_POSTER_CONFIG, SAMPLE_PRESETS } from "./constants/samples";
-import type { PosterConfig, ShowCardData } from "./types/showcard";
+import { auth, signInWithGoogle, signOutUser } from "./firebase";
+import {
+  deletePosterFromHistory,
+  savePosterToHistory,
+  saveWorkspaceDraft,
+  subscribeToPosterHistory,
+  subscribeToWorkspace,
+} from "./services/posterSyncService";
+import type {
+  PosterConfig,
+  PosterHistoryItem,
+  PosterHistorySource,
+  ShowCardData,
+} from "./types/showcard";
+import { compressThumbnailDataUrl } from "./utils/imageCompression";
 
 async function cropProductImageFromShowcard(
   imageDataUrl: string,
@@ -24,7 +46,7 @@ async function cropProductImageFromShowcard(
   return new Promise((resolve) => {
     const img = new Image();
     img.onerror = () => resolve(null);
-    img.onload = () => {
+    img.onload = async () => {
       const sx = Math.max(0, Math.floor((xmin / 1000) * img.width));
       const sy = Math.max(0, Math.floor((ymin / 1000) * img.height));
       const sw = Math.min(
@@ -51,7 +73,9 @@ async function cropProductImageFromShowcard(
       }
 
       ctx.drawImage(img, sx, sy, sw, sh, 0, 0, sw, sh);
-      resolve(canvas.toDataURL("image/jpeg", 0.92));
+      const rawCrop = canvas.toDataURL("image/jpeg", 0.9);
+      const compressed = await compressThumbnailDataUrl(rawCrop);
+      resolve(compressed ?? rawCrop);
     };
     img.src = imageDataUrl;
   });
@@ -69,14 +93,238 @@ export default function App() {
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
 
+  // Firebase Auth & Sync State
+  const [user, setUser] = useState<User | null>(null);
+  const [isAuthReady, setIsAuthReady] = useState(false);
+  const [isAuthBusy, setIsAuthBusy] = useState(false);
+  const [syncState, setSyncState] = useState<
+    "idle" | "syncing" | "synced" | "error"
+  >("idle");
+  const [lastSyncedAtMs, setLastSyncedAtMs] = useState<number | null>(null);
+
+  // Saved History State
+  const [historyItems, setHistoryItems] = useState<PosterHistoryItem[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [isSavingHistory, setIsSavingHistory] = useState(false);
+  const [activePosterId, setActivePosterId] = useState<string>("");
+  const [activeSource, setActiveSource] =
+    useState<PosterHistorySource>("manual");
+
+  const hasLocalEditsRef = useRef(false);
+  const syncTimerRef = useRef<number | null>(null);
+  const historySyncTimerRef = useRef<number | null>(null);
+  const suppressNextRemoteApplyRef = useRef(false);
+  const latestConfigRef = useRef(config);
+  const latestActivePosterIdRef = useRef(activePosterId);
+  const latestSourceRef = useRef(activeSource);
+
+  latestConfigRef.current = config;
+  latestActivePosterIdRef.current = activePosterId;
+  latestSourceRef.current = activeSource;
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
+      setUser(nextUser);
+      setIsAuthReady(true);
+      if (!nextUser) {
+        setHistoryItems([]);
+        setActivePosterId("");
+        setSyncState("idle");
+        setLastSyncedAtMs(null);
+        setIsLoadingHistory(false);
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (!isAuthReady || !user) return;
+
+    setIsLoadingHistory(true);
+    let initialWorkspaceChecked = false;
+
+    const unsubWorkspace = subscribeToWorkspace(
+      user.uid,
+      (remoteWorkspace, hasPendingWrites) => {
+        if (!remoteWorkspace) {
+          if (!initialWorkspaceChecked) {
+            initialWorkspaceChecked = true;
+            setSyncState("syncing");
+            void saveWorkspaceDraft(
+              user.uid,
+              latestActivePosterIdRef.current,
+              latestConfigRef.current
+            )
+              .then(() => {
+                setSyncState("synced");
+                setLastSyncedAtMs(Date.now());
+              })
+              .catch(() => setSyncState("error"));
+          }
+          return;
+        }
+
+        initialWorkspaceChecked = true;
+        if (hasPendingWrites || suppressNextRemoteApplyRef.current) {
+          suppressNextRemoteApplyRef.current = false;
+          setSyncState("synced");
+          setLastSyncedAtMs(remoteWorkspace.updatedAtMs);
+          return;
+        }
+
+        if (!hasLocalEditsRef.current || syncTimerRef.current === null) {
+          setConfig(remoteWorkspace.config);
+          setActivePosterId(remoteWorkspace.activePosterId);
+          setSyncState("synced");
+          setLastSyncedAtMs(remoteWorkspace.updatedAtMs);
+        }
+      },
+      () => {
+        setSyncState("error");
+      }
+    );
+
+    const unsubHistory = subscribeToPosterHistory(
+      user.uid,
+      (items) => {
+        setHistoryItems(items);
+        setIsLoadingHistory(false);
+      },
+      () => {
+        setIsLoadingHistory(false);
+        setSyncState("error");
+      }
+    );
+
+    return () => {
+      unsubWorkspace();
+      unsubHistory();
+      if (syncTimerRef.current !== null) {
+        window.clearTimeout(syncTimerRef.current);
+        syncTimerRef.current = null;
+      }
+      if (historySyncTimerRef.current !== null) {
+        window.clearTimeout(historySyncTimerRef.current);
+        historySyncTimerRef.current = null;
+      }
+    };
+  }, [isAuthReady, user]);
+
+  const scheduleCloudSync = (
+    nextConfig: PosterConfig,
+    nextActivePosterId: string,
+    nextSource: PosterHistorySource
+  ) => {
+    if (!user || !isAuthReady) return;
+
+    hasLocalEditsRef.current = true;
+    setSyncState("syncing");
+
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current);
+    }
+
+    syncTimerRef.current = window.setTimeout(() => {
+      syncTimerRef.current = null;
+      suppressNextRemoteApplyRef.current = true;
+      void saveWorkspaceDraft(user.uid, nextActivePosterId, nextConfig)
+        .then(() => {
+          hasLocalEditsRef.current = false;
+          setSyncState("synced");
+          setLastSyncedAtMs(Date.now());
+        })
+        .catch(() => {
+          setSyncState("error");
+        });
+    }, 450);
+
+    if (nextActivePosterId) {
+      if (historySyncTimerRef.current !== null) {
+        window.clearTimeout(historySyncTimerRef.current);
+      }
+      historySyncTimerRef.current = window.setTimeout(() => {
+        historySyncTimerRef.current = null;
+        void savePosterToHistory(
+          user.uid,
+          nextConfig,
+          nextSource,
+          nextActivePosterId
+        ).catch(() => {
+          setSyncState("error");
+        });
+      }, 1100);
+    }
+  };
+
+  const syncImmediately = async (
+    nextConfig: PosterConfig,
+    nextActivePosterId: string
+  ) => {
+    if (!user || !isAuthReady) return;
+    if (syncTimerRef.current !== null) {
+      window.clearTimeout(syncTimerRef.current);
+      syncTimerRef.current = null;
+    }
+    setSyncState("syncing");
+    suppressNextRemoteApplyRef.current = true;
+    try {
+      await saveWorkspaceDraft(user.uid, nextActivePosterId, nextConfig);
+      hasLocalEditsRef.current = false;
+      setSyncState("synced");
+      setLastSyncedAtMs(Date.now());
+    } catch {
+      setSyncState("error");
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    if (isAuthBusy) return;
+    setIsAuthBusy(true);
+    setErrorMessage(null);
+    try {
+      await signInWithGoogle();
+    } catch (err) {
+      const code =
+        err && typeof err === "object" && "code" in err
+          ? String((err as { code?: unknown }).code)
+          : "";
+      if (code === "auth/popup-closed-by-user") {
+        // User dismissed sign-in popup cleanly
+      } else if (code === "auth/popup-blocked") {
+        setErrorMessage(
+          "브라우저에서 로그인 팝업이 차단되었습니다. 팝업 차단을 해제한 뒤 다시 시도해 주세요."
+        );
+      } else {
+        setErrorMessage(
+          "Google 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요."
+        );
+      }
+    } finally {
+      setIsAuthBusy(false);
+    }
+  };
+
+  const handleSignOut = async () => {
+    if (isAuthBusy) return;
+    setIsAuthBusy(true);
+    try {
+      await signOutUser();
+    } finally {
+      setIsAuthBusy(false);
+    }
+  };
+
   const handleFieldChange = <K extends keyof PosterConfig>(
     key: K,
     value: PosterConfig[K]
   ) => {
-    setConfig((prev) => ({
-      ...prev,
+    const next: PosterConfig = {
+      ...latestConfigRef.current,
       [key]: value,
-    }));
+    };
+    latestConfigRef.current = next;
+    setConfig(next);
+    scheduleCloudSync(next, latestActivePosterIdRef.current, latestSourceRef.current);
   };
 
   const handleImageSelected = async (
@@ -148,19 +396,37 @@ export default function App() {
           )
         : null;
 
-      setConfig((prev) => ({
-        ...prev,
-        eventType: extracted.eventType || prev.eventType,
-        productName: extracted.productName || prev.productName,
+      const baseConfig = latestConfigRef.current;
+      const nextConfig: PosterConfig = {
+        ...baseConfig,
+        eventType: extracted.eventType || baseConfig.eventType,
+        productName: extracted.productName || baseConfig.productName,
         subInfo: extracted.subInfo,
-        price: extracted.price || prev.price,
+        price: extracted.price || baseConfig.price,
         priceNote: extracted.priceNote || "",
         cardDiscount: extracted.cardDiscount,
         period: extracted.period,
         productImageUrl: croppedProduct,
         showProductImage: Boolean(croppedProduct),
-      }));
+      };
+
+      setConfig(nextConfig);
+      setActiveSource("ai-scan");
       setAnalysisSuccess(true);
+
+      if (user && isAuthReady) {
+        try {
+          const newPosterId = await savePosterToHistory(
+            user.uid,
+            nextConfig,
+            "ai-scan"
+          );
+          setActivePosterId(newPosterId);
+          await syncImmediately(nextConfig, newPosterId);
+        } catch {
+          setSyncState("error");
+        }
+      }
     } catch (error) {
       const msg =
         error instanceof Error && /[가-힣]/.test(error.message)
@@ -178,21 +444,27 @@ export default function App() {
     setSampleIndex(nextIndex);
     setErrorMessage(null);
     setAnalysisSuccess(false);
-    setConfig((prev) => ({
-      ...prev,
+
+    const nextConfig: PosterConfig = {
+      ...config,
       theme: preset.theme,
       productFontSize: preset.productFontSize,
       ...preset.data,
       productImageUrl: null,
       showProductImage: false,
-    }));
+    };
+    setConfig(nextConfig);
+    setActivePosterId("");
+    setActiveSource("sample");
+    void syncImmediately(nextConfig, "");
   };
 
   const handleReset = () => {
     setPreviewUrl(null);
     setErrorMessage(null);
     setAnalysisSuccess(false);
-    setConfig({
+
+    const nextConfig: PosterConfig = {
       eventType: "",
       productName: "",
       subInfo: "",
@@ -204,7 +476,70 @@ export default function App() {
       theme: config.theme,
       productImageUrl: null,
       showProductImage: false,
-    });
+    };
+    setConfig(nextConfig);
+    setActivePosterId("");
+    setActiveSource("manual");
+    void syncImmediately(nextConfig, "");
+  };
+
+  const handleSaveCurrentAsNewHistory = async () => {
+    if (!user || isSavingHistory) return;
+    setIsSavingHistory(true);
+    setErrorMessage(null);
+    try {
+      const newId = await savePosterToHistory(
+        user.uid,
+        config,
+        latestSourceRef.current
+      );
+      setActivePosterId(newId);
+      await syncImmediately(config, newId);
+    } catch {
+      setErrorMessage(
+        "히스토리에 홍보물을 저장하는 중 오류가 발생했습니다. 다시 시도해 주세요."
+      );
+    } finally {
+      setIsSavingHistory(false);
+    }
+  };
+
+  const handleSelectHistoryItem = async (item: PosterHistoryItem) => {
+    setErrorMessage(null);
+    setAnalysisSuccess(false);
+    setPreviewUrl(null);
+
+    const loadedConfig: PosterConfig = {
+      eventType: item.eventType,
+      productName: item.productName,
+      subInfo: item.subInfo,
+      price: item.price,
+      priceNote: item.priceNote,
+      cardDiscount: item.cardDiscount,
+      period: item.period,
+      productFontSize: item.productFontSize,
+      theme: item.theme,
+      productImageUrl: item.productImageUrl,
+      showProductImage: item.showProductImage,
+    };
+
+    setConfig(loadedConfig);
+    setActivePosterId(item.id);
+    setActiveSource(item.source);
+    await syncImmediately(loadedConfig, item.id);
+  };
+
+  const handleDeleteHistoryItem = async (posterId: string) => {
+    if (!user) return;
+    try {
+      await deletePosterFromHistory(user.uid, posterId);
+      if (activePosterId === posterId) {
+        setActivePosterId("");
+        await syncImmediately(config, "");
+      }
+    } catch {
+      setErrorMessage("히스토리 항목을 삭제하는 중 오류가 발생했습니다.");
+    }
   };
 
   const handleDownloadPng = async () => {
@@ -216,6 +551,20 @@ export default function App() {
     setErrorMessage(null);
 
     try {
+      if (user && !activePosterId && config.productName.trim()) {
+        try {
+          const newId = await savePosterToHistory(
+            user.uid,
+            config,
+            latestSourceRef.current
+          );
+          setActivePosterId(newId);
+          void syncImmediately(config, newId);
+        } catch {
+          // Do not block PNG download if history save fails
+        }
+      }
+
       const dataUrl = await toPng(posterEl, {
         cacheBust: true,
         pixelRatio: 3,
@@ -255,11 +604,17 @@ export default function App() {
     }
   };
 
+  const scrollToHistory = () => {
+    document
+      .getElementById("poster-history-section")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col">
       {/* 상단 내비게이션 바 */}
       <header className="bg-white border-b border-slate-200 sticky top-0 z-30">
-        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+        <div className="max-w-[1280px] mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-3">
           <a
             href="/"
             className="text-base sm:text-lg font-extrabold tracking-tight text-slate-900 whitespace-nowrap shrink-0"
@@ -267,15 +622,29 @@ export default function App() {
             편의점 쇼카드 홍보물 메이커
           </a>
 
-          <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={scrollToHistory}
+              className="inline-flex items-center gap-1.5 px-2.5 sm:px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+            >
+              <History className="w-3.5 h-3.5" />
+              <span>히스토리</span>
+              {user && (
+                <span className="font-mono-num text-purple-700 font-bold">
+                  {historyItems.length}
+                </span>
+              )}
+            </button>
+
             <button
               type="button"
               onClick={handleLoadSampleData}
               disabled={isAnalyzing}
-              className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              className="hidden md:inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap shrink-0 cursor-pointer"
             >
               <Wand2 className="w-3.5 h-3.5" />
-              <span>샘플 쇼카드 데이터 채우기</span>
+              <span>샘플 채우기</span>
             </button>
 
             <button
@@ -291,10 +660,103 @@ export default function App() {
         </div>
       </header>
 
-      {/* 메인 2단 작업 공간 */}
-      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 sm:px-6 py-6 lg:py-8">
+      {/* 메인 작업 공간 */}
+      <main className="flex-1 max-w-[1280px] w-full mx-auto px-4 sm:px-6 py-5 lg:py-7 space-y-5">
+        {/* 기기 간 실시간 동기화 상태 바 */}
+        <section className="bg-white border border-slate-200 rounded-2xl px-4 py-3 sm:px-5 flex flex-wrap items-center justify-between gap-3">
+          {!isAuthReady ? (
+            <div className="flex items-center gap-2 text-xs text-slate-500">
+              <Loader2 className="w-4 h-4 animate-spin text-purple-600" />
+              <span>동기화 계정 상태를 확인하는 중...</span>
+            </div>
+          ) : user ? (
+            <>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-800 flex items-center justify-center shrink-0">
+                  <Cloud className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-900 truncate">
+                      {user.email || user.displayName || "내 계정"}
+                    </span>
+                    <span className="text-[11px] font-semibold text-emerald-700">
+                      {syncState === "syncing"
+                        ? "· 동기화 저장 중..."
+                        : syncState === "error"
+                        ? "· 동기화 확인 필요"
+                        : "· 스마트폰↔PC 실시간 동기화 중"}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5 truncate">
+                    {lastSyncedAtMs
+                      ? `최근 동기화 ${new Date(lastSyncedAtMs).toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" })} · 같은 Google 계정으로 로그인하면 기기가 즉시 연동됩니다`
+                      : "같은 Google 계정으로 로그인한 모든 기기에서 동일한 포스터가 표시됩니다"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={handleSaveCurrentAsNewHistory}
+                  disabled={isSavingHistory}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-purple-800 bg-purple-100 hover:bg-purple-200 disabled:opacity-50 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  {isSavingHistory ? (
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  ) : (
+                    <BookmarkPlus className="w-3.5 h-3.5" />
+                  )}
+                  <span>작업 저장</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSignOut}
+                  disabled={isAuthBusy}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>로그아웃</span>
+                </button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                  <CloudOff className="w-4 h-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-slate-900">
+                    스마트폰 ↔ 컴퓨터 작업 동기화
+                  </div>
+                  <p className="text-[11px] text-slate-500 mt-0.5">
+                    Google 로그인을 연결하면 스마트폰에서 만든 홍보물을 컴퓨터에서도
+                    그대로 이어서 볼 수 있고 히스토리가 저장됩니다
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleGoogleSignIn}
+                disabled={isAuthBusy}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+              >
+                {isAuthBusy ? (
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                ) : (
+                  <LogIn className="w-3.5 h-3.5" />
+                )}
+                <span>Google 로그인으로 동기화</span>
+              </button>
+            </>
+          )}
+        </section>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-          {/* 왼쪽 컬럼: 업로드 & 실시간 커스터마이징 */}
+          {/* 왼쪽 컬럼: 업로드, 커스터마이징, 작업 히스토리 */}
           <div className="lg:col-span-6 xl:col-span-6 space-y-5">
             <ShowCardUploader
               isAnalyzing={isAnalyzing}
@@ -309,6 +771,18 @@ export default function App() {
               config={config}
               isAnalyzing={isAnalyzing}
               onChange={handleFieldChange}
+            />
+
+            <PosterHistoryPanel
+              isAuthenticated={Boolean(user)}
+              isLoadingHistory={isLoadingHistory}
+              isSavingHistory={isSavingHistory}
+              items={historyItems}
+              activePosterId={activePosterId}
+              onSignIn={handleGoogleSignIn}
+              onSaveCurrentAsNew={handleSaveCurrentAsNewHistory}
+              onSelectPoster={handleSelectHistoryItem}
+              onDeletePoster={handleDeleteHistoryItem}
             />
           </div>
 

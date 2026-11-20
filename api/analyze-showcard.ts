@@ -144,10 +144,12 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
       "8. productImageBox: 쇼카드 내부에 상품 패키지 썸네일 사진이 인쇄되어 있으면 해당 상품 이미지 영역만 타이트하게 감싸는 [ymin, xmin, ymax, xmax] (0~1000 정규화 좌표 4개 정수). 없으면 빈 배열 [].",
     ].join("\n");
 
-    let response;
-    try {
-      response = await ai.models.generateContent({
-        model: "gemini-2.5-flash",
+    const callVisionModel = async (
+      model: string,
+      thinkingLevel: ThinkingLevel
+    ) =>
+      ai.models.generateContent({
+        model,
         contents: {
           parts: [
             {
@@ -162,35 +164,27 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
         config: {
           responseMimeType: "application/json",
           responseSchema: SHOWCARD_RESPONSE_SCHEMA,
-          thinkingConfig: { thinkingBudget: 0 },
+          thinkingConfig: { thinkingLevel },
         },
       });
-    } catch (primaryErr) {
-      const errMsg =
-        primaryErr instanceof Error ? primaryErr.message : String(primaryErr);
-      if (errMsg.includes("404") || errMsg.includes("NOT_FOUND")) {
-        response = await ai.models.generateContent({
-          model: "gemini-4-hydrogen",
-          contents: {
-            parts: [
-              {
-                inlineData: {
-                  mimeType: resolvedMimeType,
-                  data: cleanBase64,
-                },
-              },
-              { text: promptText },
-            ],
-          },
-          config: {
-            responseMimeType: "application/json",
-            responseSchema: SHOWCARD_RESPONSE_SCHEMA,
-            thinkingConfig: { thinkingLevel: ThinkingLevel.LOW },
-          },
-        });
-      } else {
-        throw primaryErr;
+
+    let response;
+    try {
+      response = await callVisionModel("gemini-4-hydrogen", ThinkingLevel.LOW);
+    } catch (firstErr) {
+      const msg =
+        firstErr instanceof Error ? firstErr.message : String(firstErr);
+      const isTransient =
+        msg.includes("503") ||
+        msg.includes("UNAVAILABLE") ||
+        msg.includes("overloaded");
+      if (!isTransient) {
+        throw firstErr;
       }
+      response = await callVisionModel(
+        "gemini-3.1-flash-lite",
+        ThinkingLevel.MINIMAL
+      );
     }
 
     const rawText = (response.text ?? "{}")
@@ -242,6 +236,14 @@ export default async function handler(req: VercelRequest, res: ServerResponse) {
       sendJson(res, 429, {
         error:
           "요청이 많아 일시적으로 분석이 지연되고 있습니다. 잠시 후 다시 시도해 주세요.",
+      });
+      return;
+    }
+
+    if (message.includes("503") || message.includes("UNAVAILABLE")) {
+      sendJson(res, 503, {
+        error:
+          "AI 이미지 분석 서버에 일시적으로 요청이 몰리고 있습니다. 잠시 후 다시 시도해 주세요.",
       });
       return;
     }

@@ -11,6 +11,7 @@ import {
   Type as TypeIcon,
 } from "lucide-react";
 import type { PosterConfig, PosterThemeId } from "../types/showcard";
+import { compressThumbnailDataUrl } from "../utils/imageCompression";
 
 interface PosterEditorPanelProps {
   config: PosterConfig;
@@ -48,8 +49,10 @@ export function PosterEditorPanel({
   const handleProductImageUpload = (file: File | undefined) => {
     if (!file || !file.type.startsWith("image/")) return;
     const reader = new FileReader();
-    reader.onload = () => {
-      onChange("productImageUrl", reader.result as string);
+    reader.onload = async () => {
+      const rawUrl = reader.result as string;
+      const compressed = (await compressThumbnailDataUrl(rawUrl)) ?? rawUrl;
+      onChange("productImageUrl", compressed);
       onChange("showProductImage", true);
     };
     reader.readAsDataURL(file);

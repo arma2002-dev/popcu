@@ -1,0 +1,215 @@
+{
+  "entities": {
+    "UserWorkspace": {
+      "title": "UserWorkspace",
+      "description": "Active showcard poster editor state synced across devices for the authenticated user.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "activePosterId": {
+          "type": "string",
+          "description": "Currently linked poster history document ID, or empty string if unsaved draft.",
+          "maxLength": 128
+        },
+        "eventType": {
+          "type": "string",
+          "description": "Promotion badge label such as 1+1 or 2+1.",
+          "maxLength": 60
+        },
+        "productName": {
+          "type": "string",
+          "description": "Main product title shown on the poster.",
+          "maxLength": 150
+        },
+        "subInfo": {
+          "type": "string",
+          "description": "Product spec, size, or sub-benefit copy.",
+          "maxLength": 200
+        },
+        "price": {
+          "type": "string",
+          "description": "Promotional price string.",
+          "maxLength": 60
+        },
+        "priceNote": {
+          "type": "string",
+          "description": "Per-unit price note or extra price caption.",
+          "maxLength": 150
+        },
+        "cardDiscount": {
+          "type": "string",
+          "description": "Card or digital wallet discount details.",
+          "maxLength": 200
+        },
+        "period": {
+          "type": "string",
+          "description": "Promotion date range.",
+          "maxLength": 120
+        },
+        "productFontSize": {
+          "type": "number",
+          "description": "Product name font size in pixels (20 to 56)."
+        },
+        "theme": {
+          "type": "string",
+          "description": "CU official template theme identifier.",
+          "enum": ["cu-top", "cu-bottom"],
+          "maxLength": 20
+        },
+        "productImageUrl": {
+          "type": "string",
+          "description": "Compressed JPEG data URL for the product thumbnail, or empty string.",
+          "maxLength": 120000
+        },
+        "showProductImage": {
+          "type": "boolean",
+          "description": "Whether the product thumbnail is displayed on the poster."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when workspace document was first created."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp of the latest cross-device sync update."
+        }
+      },
+      "required": [
+        "userId",
+        "activePosterId",
+        "eventType",
+        "productName",
+        "subInfo",
+        "price",
+        "priceNote",
+        "cardDiscount",
+        "period",
+        "productFontSize",
+        "theme",
+        "productImageUrl",
+        "showProductImage",
+        "createdAt",
+        "updatedAt"
+      ]
+    },
+    "PosterHistoryItem": {
+      "title": "PosterHistoryItem",
+      "description": "A saved promotional poster snapshot in the user's history.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "Owner Firebase Auth UID.",
+          "minLength": 1,
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$"
+        },
+        "eventType": {
+          "type": "string",
+          "description": "Promotion badge label.",
+          "maxLength": 60
+        },
+        "productName": {
+          "type": "string",
+          "description": "Main product title.",
+          "maxLength": 150
+        },
+        "subInfo": {
+          "type": "string",
+          "description": "Product spec or sub-benefit copy.",
+          "maxLength": 200
+        },
+        "price": {
+          "type": "string",
+          "description": "Promotional price string.",
+          "maxLength": 60
+        },
+        "priceNote": {
+          "type": "string",
+          "description": "Per-unit price note.",
+          "maxLength": 150
+        },
+        "cardDiscount": {
+          "type": "string",
+          "description": "Card or payment discount details.",
+          "maxLength": 200
+        },
+        "period": {
+          "type": "string",
+          "description": "Promotion date range.",
+          "maxLength": 120
+        },
+        "productFontSize": {
+          "type": "number",
+          "description": "Product name font size in pixels (20 to 56)."
+        },
+        "theme": {
+          "type": "string",
+          "description": "CU official template theme identifier.",
+          "enum": ["cu-top", "cu-bottom"],
+          "maxLength": 20
+        },
+        "productImageUrl": {
+          "type": "string",
+          "description": "Compressed JPEG data URL for the product thumbnail, or empty string.",
+          "maxLength": 120000
+        },
+        "showProductImage": {
+          "type": "boolean",
+          "description": "Whether the product thumbnail is displayed on the poster."
+        },
+        "source": {
+          "type": "string",
+          "description": "How this poster history entry was created.",
+          "enum": ["ai-scan", "manual", "sample"],
+          "maxLength": 20
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when poster was saved."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server timestamp when poster was last updated."
+        }
+      },
+      "required": [
+        "userId",
+        "eventType",
+        "productName",
+        "subInfo",
+        "price",
+        "priceNote",
+        "cardDiscount",
+        "period",
+        "productFontSize",
+        "theme",
+        "productImageUrl",
+        "showProductImage",
+        "source",
+        "createdAt",
+        "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}/workspace/{workspaceId}": {
+      "schema": { "$ref": "#/entities/UserWorkspace" },
+      "description": "Stores the user's current synced poster editor state (workspaceId = 'current')."
+    },
+    "/users/{userId}/posters/{posterId}": {
+      "schema": { "$ref": "#/entities/PosterHistoryItem" },
+      "description": "Stores the user's saved promotional poster history items."
+    }
+  }
+}
