@@ -2,11 +2,14 @@ import React, { useEffect, useRef, useState } from "react";
 import { onAuthStateChanged, type User } from "firebase/auth";
 import { toPng } from "html-to-image";
 import {
+  AlertCircle,
   BookmarkPlus,
   Check,
   Cloud,
   CloudOff,
+  Copy,
   Download,
+  ExternalLink,
   History,
   Loader2,
   LogIn,
@@ -19,7 +22,14 @@ import { PosterHistoryPanel } from "./components/PosterHistoryPanel";
 import { PromoPosterPreview } from "./components/PromoPosterPreview";
 import { ShowCardUploader } from "./components/ShowCardUploader";
 import { DEFAULT_POSTER_CONFIG, SAMPLE_PRESETS } from "./constants/samples";
-import { auth, signInWithGoogle, signOutUser } from "./firebase";
+import {
+  FIREBASE_PROJECT_ID,
+  auth,
+  getGoogleRedirectResult,
+  signInWithGoogle,
+  signInWithGoogleRedirect,
+  signOutUser,
+} from "./firebase";
 import {
   deletePosterFromHistory,
   savePosterToHistory,
@@ -97,10 +107,83 @@ export default function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthReady, setIsAuthReady] = useState(false);
   const [isAuthBusy, setIsAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState<{
+    message: string;
+    code?: string;
+    unauthorizedDomain?: string;
+  } | null>(null);
+  const [copiedDomain, setCopiedDomain] = useState(false);
   const [syncState, setSyncState] = useState<
     "idle" | "syncing" | "synced" | "error"
   >("idle");
   const [lastSyncedAtMs, setLastSyncedAtMs] = useState<number | null>(null);
+
+  const isInIframe =
+    typeof window !== "undefined" && window.self !== window.top;
+  const isInAppBrowser =
+    typeof navigator !== "undefined" &&
+    /KAKAOTALK|NAVER|Line|Instagram|FBAN|FBAV|; wv\)/i.test(navigator.userAgent);
+
+  const buildAuthErrorState = (err: unknown) => {
+    const code =
+      err && typeof err === "object" && "code" in err
+        ? String((err as { code?: unknown }).code)
+        : "";
+    const host =
+      typeof window !== "undefined" ? window.location.hostname : "";
+
+    if (code === "auth/unauthorized-domain") {
+      return {
+        code,
+        unauthorizedDomain: host,
+        message: `현재 접속한 도메인(${host})이 Firebase 승인 도메인에 등록되지 않아 Google 로그인을 할 수 없습니다. 아래 '도메인 복사' 후 Firebase Console 승인된 도메인에 추가하거나 AI Studio 기본 URL에서 접속해 주세요.`,
+      };
+    }
+
+    if (
+      code === "auth/popup-blocked" ||
+      code === "auth/operation-not-supported-in-this-environment"
+    ) {
+      return {
+        code,
+        message:
+          "브라우저에서 로그인 팝업이 차단되었거나 지원되지 않습니다. 팝업 차단을 해제하거나 아래 '리다이렉트로 로그인'(또는 새 창 열기)을 이용해 주세요.",
+      };
+    }
+
+    if (
+      code === "auth/popup-closed-by-user" ||
+      code === "auth/cancelled-popup-request"
+    ) {
+      return {
+        code,
+        message: isInAppBrowser
+          ? "카카오톡·네이버 등 인앱 브라우저에서는 Google 로그인이 차단될 수 있습니다. 우측 메뉴에서 'Chrome 또는 Safari로 열기' 후 다시 시도해 주세요."
+          : "로그인 팝업 창이 닫혀 완료되지 않았습니다. 창이 자동으로 닫힌다면 아래 '리다이렉트로 로그인' 또는 '새 창에서 열어 로그인'을 시도해 주세요.",
+      };
+    }
+
+    if (code === "auth/operation-not-allowed") {
+      return {
+        code,
+        message:
+          "Firebase Authentication에서 Google 로그인 제공업체가 활성화되어 있지 않습니다.",
+      };
+    }
+
+    if (code === "auth/network-request-failed") {
+      return {
+        code,
+        message:
+          "네트워크 연결이 원활하지 않아 Google 로그인에 실패했습니다. 연결을 확인한 뒤 다시 시도해 주세요.",
+      };
+    }
+
+    return {
+      code,
+      message: `Google 로그인 중 오류가 발생했습니다.${code ? ` (${code})` : ""} 잠시 후 다시 시도하거나 새 창/리다이렉트 로그인을 이용해 주세요.`,
+    };
+  };
 
   // Saved History State
   const [historyItems, setHistoryItems] = useState<PosterHistoryItem[]>([]);
@@ -126,7 +209,9 @@ export default function App() {
     const unsubscribe = onAuthStateChanged(auth, (nextUser) => {
       setUser(nextUser);
       setIsAuthReady(true);
-      if (!nextUser) {
+      if (nextUser) {
+        setAuthError(null);
+      } else {
         setHistoryItems([]);
         setActivePosterId("");
         setSyncState("idle");
@@ -134,7 +219,19 @@ export default function App() {
         setIsLoadingHistory(false);
       }
     });
+
+    void getGoogleRedirectResult()
+      .then((result) => {
+        if (result?.user) {
+          setAuthError(null);
+        }
+      })
+      .catch((err) => {
+        setAuthError(buildAuthErrorState(err));
+      });
+
     return () => unsubscribe();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -280,6 +377,7 @@ export default function App() {
   const handleGoogleSignIn = async () => {
     if (isAuthBusy) return;
     setIsAuthBusy(true);
+    setAuthError(null);
     setErrorMessage(null);
     try {
       await signInWithGoogle();
@@ -288,19 +386,52 @@ export default function App() {
         err && typeof err === "object" && "code" in err
           ? String((err as { code?: unknown }).code)
           : "";
-      if (code === "auth/popup-closed-by-user") {
-        // User dismissed sign-in popup cleanly
-      } else if (code === "auth/popup-blocked") {
-        setErrorMessage(
-          "브라우저에서 로그인 팝업이 차단되었습니다. 팝업 차단을 해제한 뒤 다시 시도해 주세요."
-        );
+      if (
+        (code === "auth/popup-blocked" ||
+          code === "auth/operation-not-supported-in-this-environment") &&
+        !isInIframe
+      ) {
+        try {
+          await signInWithGoogleRedirect();
+          return;
+        } catch (redirectErr) {
+          setAuthError(buildAuthErrorState(redirectErr));
+        }
       } else {
-        setErrorMessage(
-          "Google 로그인에 실패했습니다. 잠시 후 다시 시도해 주세요."
-        );
+        setAuthError(buildAuthErrorState(err));
       }
     } finally {
       setIsAuthBusy(false);
+    }
+  };
+
+  const handleGoogleRedirectSignIn = async () => {
+    if (isAuthBusy) return;
+    if (isInIframe) {
+      setAuthError({
+        message:
+          "미리보기 창 내부에서는 리다이렉트 로그인이 제한됩니다. 아래 '새 창에서 열어 로그인' 버튼을 눌러 전체 화면에서 로그인해 주세요.",
+      });
+      return;
+    }
+    setIsAuthBusy(true);
+    setAuthError(null);
+    setErrorMessage(null);
+    try {
+      await signInWithGoogleRedirect();
+    } catch (err) {
+      setAuthError(buildAuthErrorState(err));
+      setIsAuthBusy(false);
+    }
+  };
+
+  const handleCopyUnauthorizedDomain = async (domain: string) => {
+    try {
+      await navigator.clipboard.writeText(domain);
+      setCopiedDomain(true);
+      window.setTimeout(() => setCopiedDomain(false), 2000);
+    } catch {
+      // Clipboard write unavailable
     }
   };
 
@@ -722,36 +853,134 @@ export default function App() {
               </div>
             </>
           ) : (
-            <>
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
-                  <CloudOff className="w-4 h-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-slate-900">
-                    스마트폰 ↔ 컴퓨터 작업 동기화
+            <div className="w-full space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-9 h-9 rounded-xl bg-slate-100 text-slate-600 flex items-center justify-center shrink-0">
+                    <CloudOff className="w-4 h-4" />
                   </div>
-                  <p className="text-[11px] text-slate-500 mt-0.5">
-                    Google 로그인을 연결하면 스마트폰에서 만든 홍보물을 컴퓨터에서도
-                    그대로 이어서 볼 수 있고 히스토리가 저장됩니다
-                  </p>
+                  <div className="min-w-0">
+                    <div className="text-xs font-bold text-slate-900">
+                      스마트폰 ↔ 컴퓨터 작업 동기화
+                    </div>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Google 로그인을 연결하면 스마트폰에서 만든 홍보물을 컴퓨터에서도
+                      그대로 이어서 볼 수 있고 히스토리가 저장됩니다
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleGoogleSignIn}
+                    disabled={isAuthBusy}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                  >
+                    {isAuthBusy ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <LogIn className="w-3.5 h-3.5" />
+                    )}
+                    <span>Google 로그인으로 동기화</span>
+                  </button>
+
+                  {!isInIframe && (
+                    <button
+                      type="button"
+                      onClick={handleGoogleRedirectSignIn}
+                      disabled={isAuthBusy}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
+                    >
+                      <span>모바일/리다이렉트 로그인</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleGoogleSignIn}
-                disabled={isAuthBusy}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold text-white bg-slate-900 hover:bg-slate-800 disabled:opacity-50 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-              >
-                {isAuthBusy ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <LogIn className="w-3.5 h-3.5" />
-                )}
-                <span>Google 로그인으로 동기화</span>
-              </button>
-            </>
+              {isInAppBrowser && !authError && (
+                <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-xs text-amber-900">
+                  <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                  <span>
+                    카카오톡·네이버 등 인앱 브라우저에서는 Google 로그인이 차단될 수
+                    있습니다. 우측 상단 메뉴에서 <strong>Chrome 또는 Safari로 열기</strong>를
+                    선택해 주세요.
+                  </span>
+                </div>
+              )}
+
+              {authError && (
+                <div className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-xs text-red-800 space-y-2">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
+                    <p className="leading-relaxed font-medium">
+                      {authError.message}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 pl-6">
+                    {authError.unauthorizedDomain && (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() =>
+                            handleCopyUnauthorizedDomain(
+                              authError.unauthorizedDomain!
+                            )
+                          }
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-red-800 bg-white border border-red-200 hover:bg-red-100 rounded-lg transition-colors cursor-pointer"
+                        >
+                          {copiedDomain ? (
+                            <Check className="w-3 h-3 text-emerald-600" />
+                          ) : (
+                            <Copy className="w-3 h-3" />
+                          )}
+                          <span>
+                            {copiedDomain
+                              ? "도메인 복사됨"
+                              : `도메인 복사 (${authError.unauthorizedDomain})`}
+                          </span>
+                        </button>
+                        <a
+                          href={`https://console.firebase.google.com/project/${FIREBASE_PROJECT_ID}/authentication/settings`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-red-800 bg-white border border-red-200 hover:bg-red-100 rounded-lg transition-colors"
+                        >
+                          <span>Firebase 승인 도메인 설정</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </>
+                    )}
+
+                    {!isInIframe ? (
+                      <button
+                        type="button"
+                        onClick={handleGoogleRedirectSignIn}
+                        disabled={isAuthBusy}
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
+                      >
+                        <span>리다이렉트로 로그인</span>
+                      </button>
+                    ) : (
+                      <a
+                        href={
+                          typeof window !== "undefined"
+                            ? window.location.href
+                            : "/"
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors"
+                      >
+                        <span>새 창에서 열어 로그인</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
           )}
         </section>
 
@@ -777,9 +1006,14 @@ export default function App() {
               isAuthenticated={Boolean(user)}
               isLoadingHistory={isLoadingHistory}
               isSavingHistory={isSavingHistory}
+              isAuthBusy={isAuthBusy}
+              authErrorMessage={authError?.message ?? null}
               items={historyItems}
               activePosterId={activePosterId}
               onSignIn={handleGoogleSignIn}
+              onSignInRedirect={
+                !isInIframe ? handleGoogleRedirectSignIn : undefined
+              }
               onSaveCurrentAsNew={handleSaveCurrentAsNewHistory}
               onSelectPoster={handleSelectHistoryItem}
               onDeletePoster={handleDeleteHistoryItem}

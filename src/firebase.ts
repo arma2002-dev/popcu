@@ -2,16 +2,21 @@ import { initializeApp } from "firebase/app";
 import {
   GoogleAuthProvider,
   getAuth,
+  getRedirectResult,
   signInWithPopup,
+  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { doc, getDocFromServer, getFirestore } from "firebase/firestore";
 import firebaseConfig from "../firebase-applet-config.json";
 import type { PosterConfig, PosterThemeId } from "./types/showcard";
 
+export const FIREBASE_PROJECT_ID = firebaseConfig.projectId;
+
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
 export const auth = getAuth(app);
+auth.useDeviceLanguage();
 
 export const googleProvider = new GoogleAuthProvider();
 googleProvider.setCustomParameters({
@@ -20,6 +25,14 @@ googleProvider.setCustomParameters({
 
 export async function signInWithGoogle() {
   return signInWithPopup(auth, googleProvider);
+}
+
+export async function signInWithGoogleRedirect() {
+  return signInWithRedirect(auth, googleProvider);
+}
+
+export async function getGoogleRedirectResult() {
+  return getRedirectResult(auth);
 }
 
 export async function signOutUser() {
