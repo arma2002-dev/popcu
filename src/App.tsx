@@ -25,9 +25,7 @@ import { DEFAULT_POSTER_CONFIG, SAMPLE_PRESETS } from "./constants/samples";
 import {
   FIREBASE_PROJECT_ID,
   auth,
-  getGoogleRedirectResult,
   signInWithGoogle,
-  signInWithGoogleRedirect,
   signOutUser,
 } from "./firebase";
 import {
@@ -129,7 +127,6 @@ export default function App() {
       err && typeof err === "object" && "code" in err
         ? String((err as { code?: unknown }).code)
         : "";
-    console.error("Google Auth Error:", code || "unknown", err);
     const host =
       typeof window !== "undefined" ? window.location.hostname : "";
 
@@ -159,7 +156,7 @@ export default function App() {
         code,
         message: isInIframe
           ? "미리보기 창 내부 보안 정책으로 Google 인증 모듈 연결에 실패했습니다(auth/internal-error). 아래 '새 창에서 열어 로그인'을 이용해 주세요."
-          : "인증 서버 연결 중 일시적인 오류가 발생했습니다(auth/internal-error). 아래 '리다이렉트로 로그인'을 시도해 주세요.",
+          : "인증 서버 연결 중 일시적인 오류가 발생했습니다(auth/internal-error). 브라우저의 팝업 및 쿠키 설정을 확인한 뒤 다시 시도해 주세요.",
       };
     }
 
@@ -170,7 +167,7 @@ export default function App() {
       return {
         code,
         message:
-          "브라우저에서 로그인 팝업이 차단되었거나 지원되지 않습니다. 팝업 차단을 해제하거나 아래 '리다이렉트로 로그인'(또는 새 창 열기)을 이용해 주세요.",
+          "브라우저에서 로그인 팝업이 차단되었거나 지원되지 않습니다. 팝업 차단을 해제한 뒤 다시 시도해 주세요.",
       };
     }
 
@@ -182,7 +179,9 @@ export default function App() {
         code,
         message: isInAppBrowser
           ? "카카오톡·네이버 등 인앱 브라우저에서는 Google 로그인이 차단될 수 있습니다. 우측 메뉴에서 'Chrome 또는 Safari로 열기' 후 다시 시도해 주세요."
-          : "로그인 팝업 창이 닫혀 완료되지 않았습니다. 창이 자동으로 닫힌다면 아래 '리다이렉트로 로그인' 또는 '새 창에서 열어 로그인'을 시도해 주세요.",
+          : isInIframe
+          ? "미리보기 창(iframe) 내부에서는 브라우저 보안 정책으로 로그인 팝업 연동이 끊길 수 있습니다. 아래 '새 창에서 열어 로그인'으로 진행해 주세요."
+          : "로그인 팝업 창이 닫혀 완료되지 않았습니다. 다시 시도하려면 'Google 로그인으로 동기화'를 눌러 주세요.",
       };
     }
 
@@ -204,7 +203,7 @@ export default function App() {
 
     return {
       code,
-      message: `Google 로그인 중 오류가 발생했습니다.${code ? ` (${code})` : ""} 잠시 후 다시 시도하거나 새 창/리다이렉트 로그인을 이용해 주세요.`,
+      message: `Google 로그인 중 오류가 발생했습니다.${code ? ` (${code})` : ""} 잠시 후 다시 시도해 주세요.`,
     };
   };
 
@@ -243,18 +242,7 @@ export default function App() {
       }
     });
 
-    void getGoogleRedirectResult()
-      .then((result) => {
-        if (result?.user) {
-          setAuthError(null);
-        }
-      })
-      .catch((err) => {
-        setAuthError(buildAuthErrorState(err));
-      });
-
     return () => unsubscribe();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -405,47 +393,8 @@ export default function App() {
     try {
       await signInWithGoogle();
     } catch (err) {
-      const code =
-        err && typeof err === "object" && "code" in err
-          ? String((err as { code?: unknown }).code)
-          : "";
-      if (
-        (code === "auth/popup-blocked" ||
-          code === "auth/operation-not-supported-in-this-environment" ||
-          code === "auth/web-storage-unsupported" ||
-          code === "auth/internal-error") &&
-        !isInIframe
-      ) {
-        try {
-          await signInWithGoogleRedirect();
-          return;
-        } catch (redirectErr) {
-          setAuthError(buildAuthErrorState(redirectErr));
-        }
-      } else {
-        setAuthError(buildAuthErrorState(err));
-      }
-    } finally {
-      setIsAuthBusy(false);
-    }
-  };
-
-  const handleGoogleRedirectSignIn = async () => {
-    if (isAuthBusy) return;
-    if (isInIframe) {
-      setAuthError({
-        message:
-          "미리보기 창 내부에서는 리다이렉트 로그인이 제한됩니다. 아래 '새 창에서 열어 로그인' 버튼을 눌러 전체 화면에서 로그인해 주세요.",
-      });
-      return;
-    }
-    setIsAuthBusy(true);
-    setAuthError(null);
-    setErrorMessage(null);
-    try {
-      await signInWithGoogleRedirect();
-    } catch (err) {
       setAuthError(buildAuthErrorState(err));
+    } finally {
       setIsAuthBusy(false);
     }
   };
@@ -909,17 +858,6 @@ export default function App() {
                     )}
                     <span>Google 로그인으로 동기화</span>
                   </button>
-
-                  {!isInIframe && (
-                    <button
-                      type="button"
-                      onClick={handleGoogleRedirectSignIn}
-                      disabled={isAuthBusy}
-                      className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 disabled:opacity-50 rounded-xl transition-colors whitespace-nowrap shrink-0 cursor-pointer"
-                    >
-                      <span>모바일/리다이렉트 로그인</span>
-                    </button>
-                  )}
                 </div>
               </div>
 
@@ -978,16 +916,7 @@ export default function App() {
                       </>
                     )}
 
-                    {!isInIframe ? (
-                      <button
-                        type="button"
-                        onClick={handleGoogleRedirectSignIn}
-                        disabled={isAuthBusy}
-                        className="inline-flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-semibold text-slate-800 bg-white border border-slate-300 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-                      >
-                        <span>리다이렉트로 로그인</span>
-                      </button>
-                    ) : (
+                    {isInIframe && (
                       <a
                         href={
                           typeof window !== "undefined"
@@ -1036,9 +965,6 @@ export default function App() {
               items={historyItems}
               activePosterId={activePosterId}
               onSignIn={handleGoogleSignIn}
-              onSignInRedirect={
-                !isInIframe ? handleGoogleRedirectSignIn : undefined
-              }
               onSaveCurrentAsNew={handleSaveCurrentAsNewHistory}
               onSelectPoster={handleSelectHistoryItem}
               onDeletePoster={handleDeleteHistoryItem}

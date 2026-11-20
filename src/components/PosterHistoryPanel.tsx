@@ -20,7 +20,6 @@ interface PosterHistoryPanelProps {
   items: PosterHistoryItem[];
   activePosterId: string;
   onSignIn: () => void;
-  onSignInRedirect?: () => void;
   onSaveCurrentAsNew: () => void;
   onSelectPoster: (item: PosterHistoryItem) => void;
   onDeletePoster: (posterId: string) => void;
@@ -47,7 +46,6 @@ export function PosterHistoryPanel({
   items,
   activePosterId,
   onSignIn,
-  onSignInRedirect,
   onSaveCurrentAsNew,
   onSelectPoster,
   onDeletePoster,
@@ -117,16 +115,6 @@ export function PosterHistoryPanel({
               )}
               <span>Google 로그인으로 동기화</span>
             </button>
-            {onSignInRedirect && (
-              <button
-                type="button"
-                onClick={onSignInRedirect}
-                disabled={isAuthBusy}
-                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-slate-700 bg-white border border-slate-300 hover:bg-slate-100 disabled:opacity-50 rounded-lg transition-colors cursor-pointer"
-              >
-                <span>모바일/리다이렉트 로그인</span>
-              </button>
-            )}
           </div>
           {authErrorMessage && (
             <p className="mt-3 text-xs text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2 leading-relaxed">

@@ -2,9 +2,7 @@ import { initializeApp } from "firebase/app";
 import {
   GoogleAuthProvider,
   getAuth,
-  getRedirectResult,
   signInWithPopup,
-  signInWithRedirect,
   signOut,
 } from "firebase/auth";
 import { doc, getDocFromServer, getFirestore } from "firebase/firestore";
@@ -25,14 +23,6 @@ googleProvider.setCustomParameters({
 
 export async function signInWithGoogle() {
   return signInWithPopup(auth, googleProvider);
-}
-
-export async function signInWithGoogleRedirect() {
-  return signInWithRedirect(auth, googleProvider);
-}
-
-export async function getGoogleRedirectResult() {
-  return getRedirectResult(auth);
 }
 
 export async function signOutUser() {
