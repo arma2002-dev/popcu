@@ -129,14 +129,37 @@ export default function App() {
       err && typeof err === "object" && "code" in err
         ? String((err as { code?: unknown }).code)
         : "";
+    console.error("Google Auth Error:", code || "unknown", err);
     const host =
       typeof window !== "undefined" ? window.location.hostname : "";
 
-    if (code === "auth/unauthorized-domain") {
+    if (
+      code === "auth/unauthorized-domain" ||
+      code === "auth/unauthorized-continue-uri" ||
+      code === "auth/app-not-authorized"
+    ) {
       return {
         code,
         unauthorizedDomain: host,
-        message: `현재 접속한 도메인(${host})이 Firebase 승인 도메인에 등록되지 않아 Google 로그인을 할 수 없습니다. 아래 '도메인 복사' 후 Firebase Console 승인된 도메인에 추가하거나 AI Studio 기본 URL에서 접속해 주세요.`,
+        message: `현재 접속한 도메인(${host})이 Firebase 승인 도메인에 등록되지 않았거나 앱 인증이 허용되지 않았습니다(${code}). 아래 '도메인 복사' 후 Firebase Console 승인된 도메인에 추가하거나 AI Studio 기본 URL에서 접속해 주세요.`,
+      };
+    }
+
+    if (code === "auth/web-storage-unsupported") {
+      return {
+        code,
+        message: isInIframe
+          ? "현재 미리보기 창이나 브라우저 설정에서 서드파티 쿠키/웹 저장소가 제한되어 팝업 로그인을 완료할 수 없습니다. 아래 '새 창에서 열어 로그인'을 눌러 주세요."
+          : "브라우저 설정(시크릿 모드 또는 쿠키 차단)으로 인해 로그인 저장소를 사용할 수 없습니다. 일반 브라우저 창에서 쿠키를 허용한 뒤 다시 시도해 주세요.",
+      };
+    }
+
+    if (code === "auth/internal-error") {
+      return {
+        code,
+        message: isInIframe
+          ? "미리보기 창 내부 보안 정책으로 Google 인증 모듈 연결에 실패했습니다(auth/internal-error). 아래 '새 창에서 열어 로그인'을 이용해 주세요."
+          : "인증 서버 연결 중 일시적인 오류가 발생했습니다(auth/internal-error). 아래 '리다이렉트로 로그인'을 시도해 주세요.",
       };
     }
 
@@ -388,7 +411,9 @@ export default function App() {
           : "";
       if (
         (code === "auth/popup-blocked" ||
-          code === "auth/operation-not-supported-in-this-environment") &&
+          code === "auth/operation-not-supported-in-this-environment" ||
+          code === "auth/web-storage-unsupported" ||
+          code === "auth/internal-error") &&
         !isInIframe
       ) {
         try {
